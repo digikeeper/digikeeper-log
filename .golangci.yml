@@ -1,0 +1,33 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    # correctness
+    - bodyclose      # HTTP response bodies must be closed
+    - noctx          # HTTP requests should use context
+    - sqlclosecheck  # sql.Rows / sql.Stmt must be closed
+    - errchkjson     # JSON encoding errors must be checked
+    - errorlint      # proper error wrapping/unwrapping
+    # style
+    - revive         # opinionated but configurable
+    - misspell       # typos in comments and strings
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: indent-error-flow
+        - name: error-return
+        - name: error-strings
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/gitrus/digikeeper-log
