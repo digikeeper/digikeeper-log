@@ -20,6 +20,7 @@ import (
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
+	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
 	store "github.com/gitrus/digikeeper-log/internal/infrastructure"
 	"github.com/gitrus/digikeeper-log/pkg/chain"
 	"github.com/gitrus/digikeeper-log/pkg/healthz"
@@ -56,6 +57,7 @@ func run() error {
 	// Handlers
 	cmdHandler := apicmd.NewHandler(cmdSvc)
 	qryHandler := apiqry.NewHandler(qrySvc)
+	regHandler := apireg.NewHandler()
 
 	// API
 	mux := http.NewServeMux()
@@ -76,6 +78,20 @@ func run() error {
 		Summary:       "Append a log entry",
 		DefaultStatus: http.StatusCreated,
 	}, cmdHandler.AppendLog)
+	huma.Register(api, huma.Operation{
+		OperationID:   "list-schemas",
+		Method:        http.MethodGet,
+		Path:          "/v1/registry",
+		Summary:       "List all entry type schemas",
+		DefaultStatus: http.StatusOK,
+	}, regHandler.ListSchemas)
+	huma.Register(api, huma.Operation{
+		OperationID:   "get-schema",
+		Method:        http.MethodGet,
+		Path:          "/v1/registry/{type}",
+		Summary:       "Get schema for an entry type",
+		DefaultStatus: http.StatusOK,
+	}, regHandler.GetSchema)
 
 	mux.HandleFunc("GET /healthz", healthz.Handle)
 	mux.Handle("/debug/", http.DefaultServeMux)

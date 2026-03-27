@@ -12,6 +12,7 @@ type EntryResource struct {
 }
 
 type EntryResourceAttrs struct {
+	Type      string          `json:"type"`
 	Meta      model.EntryMeta `json:"meta"`
 	RequestID string          `json:"request_id"`
 	CreatedAt time.Time       `json:"created_at"`
@@ -27,6 +28,7 @@ func NewEntryResource(e model.Entry) EntryResource {
 	return EntryResource{
 		id: e.ID,
 		attrs: EntryResourceAttrs{
+			Type:      e.Type,
 			Meta:      e.Meta,
 			RequestID: e.RequestID,
 			CreatedAt: e.CreatedAt,

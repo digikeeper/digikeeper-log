@@ -19,6 +19,7 @@ func (s *Service) AppendEntry(
 ) (model.Entry, error) {
 	entry := model.Entry{
 		ID: uuid.NewString(),
+		Type: req.Type,
 		Meta: model.EntryMeta{
 			Version: 1,
 			Src:     s.ResolveSrc(req.ClientID),

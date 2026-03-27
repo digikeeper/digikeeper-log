@@ -154,7 +154,7 @@ func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]model.Entry, e
 
 func matchFilters(line []byte, f *ReadFilters) bool {
 	if !f.From.IsZero() || !f.To.IsZero() {
-		ts := gjson.GetBytes(line, "timestamp").Time()
+		ts := gjson.GetBytes(line, "ts").Time()
 		if !f.From.IsZero() && ts.Before(f.From) {
 			return false
 		}

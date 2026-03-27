@@ -25,6 +25,7 @@ func NewHandler(svc *domainCmd.Service) *Handler {
 type AppendInput struct {
 	ClientID string `header:"X-Client-Id" doc:"Client identifier for source tracking"`
 	Body     struct {
+		Type      string         `json:"type" doc:"Entry type"`
 		Timestamp time.Time      `json:"timestamp" required:"true" doc:"Event timestamp"`
 		Tags      []string       `json:"tags" doc:"Entry tags"`
 		Data      map[string]any `json:"data" doc:"Entry data"`
@@ -56,6 +57,7 @@ type AppendOutput struct {
 
 func (h *Handler) AppendLog(ctx context.Context, input *AppendInput) (*AppendOutput, error) {
 	req := domainCmd.AppendRequest{
+		Type:      input.Body.Type,
 		Timestamp: input.Body.Timestamp,
 		Tags:      input.Body.Tags,
 		Data:      input.Body.Data,

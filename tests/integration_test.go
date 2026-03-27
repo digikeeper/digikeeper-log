@@ -21,6 +21,7 @@ import (
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
+	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
 	store "github.com/gitrus/digikeeper-log/internal/infrastructure"
 )
 
@@ -46,6 +47,7 @@ type resourceObject struct {
 }
 
 type entryAttrs struct {
+	Type      string         `json:"type"`
 	Meta      entryMeta      `json:"meta"`
 	RequestID string         `json:"request_id"`
 	CreatedAt string         `json:"created_at"`
@@ -73,6 +75,7 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 
 	cmdHandler := apicmd.NewHandler(cmdSvc)
 	qryHandler := apiqry.NewHandler(qrySvc)
+	regHandler := apireg.NewHandler()
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, httpapi.NewHumaConfig("Digikeeper Log", "1.0.0"))
@@ -93,6 +96,20 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 		Summary:       "Append a log entry",
 		DefaultStatus: http.StatusCreated,
 	}, cmdHandler.AppendLog)
+	huma.Register(api, huma.Operation{
+		OperationID:   "list-schemas",
+		Method:        http.MethodGet,
+		Path:          "/v1/registry",
+		Summary:       "List all entry type schemas",
+		DefaultStatus: http.StatusOK,
+	}, regHandler.ListSchemas)
+	huma.Register(api, huma.Operation{
+		OperationID:   "get-schema",
+		Method:        http.MethodGet,
+		Path:          "/v1/registry/{type}",
+		Summary:       "Get schema for an entry type",
+		DefaultStatus: http.StatusOK,
+	}, regHandler.GetSchema)
 
 	sloghttp.RequestIDHeaderKey = "X-Request-ID"
 	handler := sloghttp.NewWithConfig(logger, sloghttp.Config{
@@ -107,7 +124,7 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 func TestPostEntry(t *testing.T) {
 	srv := setupTestServer(t, nil)
 
-	body := `{"timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
+	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 	// act
 	resp, err := http.Post(srv.URL+"/v1/logs", "application/json", strings.NewReader(body))
 	require.NoError(t, err)
@@ -122,6 +139,7 @@ func TestPostEntry(t *testing.T) {
 
 	assert.Equal(t, "logs", got.Meta.Type)
 	assert.NotEmpty(t, got.Data.ID)
+	assert.Equal(t, "note", got.Data.Attributes.Type)
 	assert.Equal(t, "2026-03-08T10:00:00Z", got.Data.Attributes.Timestamp)
 	assert.Equal(t, []string{"work"}, got.Data.Attributes.Tags)
 	assert.Equal(t, "test", got.Data.Attributes.Data["note"])
@@ -135,8 +153,8 @@ func TestPostThenGet(t *testing.T) {
 
 	// act POST
 	for _, postBody := range []string{
-		`{"timestamp":"2026-03-08T14:30:00Z","tags":["fitness","health"],"data":{"exercise":"running"}}`,
-		`{"timestamp":"2026-03-08T14:29:00Z","tags":["health"],"data":{"exercise":"pre-running"}}`,
+		`{"type":"note","timestamp":"2026-03-08T14:30:00Z","tags":["fitness","health"],"data":{"exercise":"running"}}`,
+		`{"type":"note","timestamp":"2026-03-08T14:29:00Z","tags":["health"],"data":{"exercise":"pre-running"}}`,
 	} {
 		postResp, err := http.Post(srv.URL+"/v1/logs", "application/json", strings.NewReader(postBody))
 		require.NoError(t, err)
@@ -175,7 +193,7 @@ func TestAppendWithClientID(t *testing.T) {
 	clientSources := map[string]int{"mobile": 1, "web": 2}
 	srv := setupTestServer(t, clientSources)
 
-	body := `{"timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
+	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 
 	tests := []struct {
 		name     string
@@ -213,7 +231,7 @@ func TestAppendWithClientID(t *testing.T) {
 func TestAppendPassesRequestID(t *testing.T) {
 	srv := setupTestServer(t, nil)
 
-	body := `{"timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
+	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/v1/logs", strings.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
@@ -233,7 +251,7 @@ func TestAppendPassesRequestID(t *testing.T) {
 func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
 	srv := setupTestServer(t, nil)
 
-	body := `{"timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
+	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 	resp, err := http.Post(srv.URL+"/v1/logs", "application/json", strings.NewReader(body))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -243,4 +261,41 @@ func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
 	var got singleResponse
 	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
 	assert.NotEmpty(t, got.Data.Attributes.RequestID)
+}
+
+func TestRegistryListSchemas(t *testing.T) {
+	srv := setupTestServer(t, nil)
+
+	resp, err := http.Get(srv.URL + "/v1/registry")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got struct {
+		Schemas []struct {
+			Type   string `json:"type"`
+			Schema any    `json:"schema"`
+		} `json:"schemas"`
+	}
+	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+	require.Len(t, got.Schemas, 1)
+	assert.Equal(t, "note", got.Schemas[0].Type)
+}
+
+func TestRegistryGetSchema(t *testing.T) {
+	srv := setupTestServer(t, nil)
+
+	resp, err := http.Get(srv.URL + "/v1/registry/note")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got struct {
+		Type   string `json:"type"`
+		Schema any    `json:"schema"`
+	}
+	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+	assert.Equal(t, "note", got.Type)
 }

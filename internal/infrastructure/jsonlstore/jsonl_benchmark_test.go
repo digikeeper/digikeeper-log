@@ -251,7 +251,7 @@ func capTagsCount(n int) int {
 
 func matchFiltersBy2FieldUnmarshalJSONV2(line []byte, f *ReadFilters) bool {
 	var obj struct {
-		Timestamp time.Time `json:"timestamp"`
+		Timestamp time.Time `json:"ts"`
 		Tags      []string  `json:"tags"`
 	}
 	if err := jsonv2.Unmarshal(line, &obj); err != nil {
@@ -262,7 +262,7 @@ func matchFiltersBy2FieldUnmarshalJSONV2(line []byte, f *ReadFilters) bool {
 
 func matchFiltersBy2FieldUnmarshalStdJSON(line []byte, f *ReadFilters) bool {
 	var obj struct {
-		Timestamp time.Time `json:"timestamp"`
+		Timestamp time.Time `json:"ts"`
 		Tags      []string  `json:"tags"`
 	}
 	if err := stdjson.Unmarshal(line, &obj); err != nil {
