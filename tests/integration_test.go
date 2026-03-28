@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gitrus/digikeeper-log/internal/domain/command"
+	"github.com/gitrus/digikeeper-log/internal/domain/model"
 	"github.com/gitrus/digikeeper-log/internal/domain/query"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
@@ -73,7 +74,7 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 	cmdSvc := command.NewService(logStore, logger, clientSources)
 	qrySvc := query.NewService(logStore, logStore, logger)
 
-	resolveSrc := httpapi.NewSourceResolver(clientSources)
+	resolveSrc := model.NewSourceResolver(clientSources)
 	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
 	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()

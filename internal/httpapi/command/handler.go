@@ -11,15 +11,16 @@ import (
 
 	domainCmd "github.com/gitrus/digikeeper-log/internal/domain/command"
 	"github.com/gitrus/digikeeper-log/internal/domain/errs"
+	"github.com/gitrus/digikeeper-log/internal/domain/model"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 )
 
 type Handler struct {
 	svc       *domainCmd.Service
-	resolveSrc httpapi.SourceResolver
+	resolveSrc model.SourceResolver
 }
 
-func NewHandler(svc *domainCmd.Service, resolveSrc httpapi.SourceResolver) *Handler {
+func NewHandler(svc *domainCmd.Service, resolveSrc model.SourceResolver) *Handler {
 	return &Handler{svc: svc, resolveSrc: resolveSrc}
 }
 

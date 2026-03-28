@@ -16,6 +16,7 @@ import (
 	sloghttp "github.com/samber/slog-http"
 
 	"github.com/gitrus/digikeeper-log/internal/domain/command"
+	"github.com/gitrus/digikeeper-log/internal/domain/model"
 	"github.com/gitrus/digikeeper-log/internal/domain/query"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
@@ -55,7 +56,7 @@ func run() error {
 	qrySvc := query.NewService(logStore, logStore, logger)
 
 	// Handlers
-	resolveSrc := httpapi.NewSourceResolver(cfg.ClientSources)
+	resolveSrc := model.NewSourceResolver(cfg.ClientSources)
 	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
 	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()

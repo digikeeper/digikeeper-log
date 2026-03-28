@@ -29,24 +29,7 @@ type EntryResourceAttrs struct {
 func (r EntryResource) GetID() string      { return r.id }
 func (r EntryResource) GetAttributes() any { return r.attrs }
 
-// SourceResolver maps numeric source IDs back to their string names.
-type SourceResolver func(int) string
-
-// NewSourceResolver builds a SourceResolver from the forward clientSources map.
-func NewSourceResolver(clientSources map[string]int) SourceResolver {
-	reverse := make(map[int]string, len(clientSources))
-	for name, id := range clientSources {
-		reverse[id] = name
-	}
-	return func(id int) string {
-		if name, ok := reverse[id]; ok {
-			return name
-		}
-		return ""
-	}
-}
-
-func NewEntryResource(e model.Entry, resolve SourceResolver) EntryResource {
+func NewEntryResource(e model.Entry, resolve model.SourceResolver) EntryResource {
 	return EntryResource{
 		id: e.ID,
 		attrs: EntryResourceAttrs{
