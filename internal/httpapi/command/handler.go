@@ -16,7 +16,7 @@ import (
 )
 
 type Handler struct {
-	svc       *domainCmd.Service
+	svc        *domainCmd.Service
 	resolveSrc model.SourceResolver
 }
 

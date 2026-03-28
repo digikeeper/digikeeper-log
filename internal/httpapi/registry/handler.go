@@ -5,7 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -19,6 +19,7 @@ type SchemaEntry struct {
 
 type Handler struct {
 	schemas map[string]json.RawMessage
+	order   []string
 }
 
 func NewHandler() (*Handler, error) {
@@ -28,8 +29,9 @@ func NewHandler() (*Handler, error) {
 	}
 
 	schemas := make(map[string]json.RawMessage, len(entries))
+	order := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
 		data, err := schemasFS.ReadFile("schemas/" + e.Name())
@@ -38,9 +40,11 @@ func NewHandler() (*Handler, error) {
 		}
 		name := strings.TrimSuffix(e.Name(), ".json")
 		schemas[name] = json.RawMessage(data)
+		order = append(order, name)
 	}
+	slices.Sort(order)
 
-	return &Handler{schemas: schemas}, nil
+	return &Handler{schemas: schemas, order: order}, nil
 }
 
 type ListOutput struct {
@@ -52,8 +56,8 @@ type ListOutput struct {
 func (h *Handler) ListSchemas(_ context.Context, _ *struct{}) (*ListOutput, error) {
 	out := &ListOutput{}
 	out.Body.Schemas = make([]SchemaEntry, 0, len(h.schemas))
-	for name, raw := range h.schemas {
-		out.Body.Schemas = append(out.Body.Schemas, SchemaEntry{Type: name, Schema: raw})
+	for _, name := range h.order {
+		out.Body.Schemas = append(out.Body.Schemas, SchemaEntry{Type: name, Schema: h.schemas[name]})
 	}
 	return out, nil
 }
