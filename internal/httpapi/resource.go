@@ -29,7 +29,7 @@ type EntryResourceAttrs struct {
 func (r EntryResource) GetID() string      { return r.id }
 func (r EntryResource) GetAttributes() any { return r.attrs }
 
-func NewEntryResource(e model.Entry, resolve model.SourceResolver) EntryResource {
+func NewEntryResource(e model.Entry, resolve func(int) string) EntryResource {
 	return EntryResource{
 		id: e.ID,
 		attrs: EntryResourceAttrs{

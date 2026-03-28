@@ -14,10 +14,10 @@ import (
 
 type Handler struct {
 	svc        *domainQuery.Service
-	resolveSrc model.SourceResolver
+	resolveSrc func(int) string
 }
 
-func NewHandler(svc *domainQuery.Service, resolveSrc model.SourceResolver) *Handler {
+func NewHandler(svc *domainQuery.Service, resolveSrc func(int) string) *Handler {
 	return &Handler{svc: svc, resolveSrc: resolveSrc}
 }
 

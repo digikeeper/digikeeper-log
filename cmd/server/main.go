@@ -16,13 +16,13 @@ import (
 	sloghttp "github.com/samber/slog-http"
 
 	"github.com/gitrus/digikeeper-log/internal/domain/command"
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
 	"github.com/gitrus/digikeeper-log/internal/domain/query"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
 	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
 	store "github.com/gitrus/digikeeper-log/internal/infrastructure"
+	"github.com/gitrus/digikeeper-log/internal/infrastructure/sourcerepo"
 	"github.com/gitrus/digikeeper-log/pkg/chain"
 	"github.com/gitrus/digikeeper-log/pkg/healthz"
 )
@@ -51,14 +51,16 @@ func run() error {
 	}
 	defer func() { _ = logStore.Close() }()
 
+	// Sources
+	srcRepo := sourcerepo.New()
+
 	// Services
-	cmdSvc := command.NewService(logStore, logger)
+	cmdSvc := command.NewService(logStore, srcRepo, logger)
 	qrySvc := query.NewService(logStore, logStore, logger)
 
 	// Handlers
-	resolveSrc := model.NewSourceResolver()
-	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
-	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
+	cmdHandler := apicmd.NewHandler(cmdSvc, srcRepo.ResolveName)
+	qryHandler := apiqry.NewHandler(qrySvc, srcRepo.ResolveName)
 	regHandler, err := apireg.NewHandler()
 	if err != nil {
 		return fmt.Errorf("init registry: %w", err)

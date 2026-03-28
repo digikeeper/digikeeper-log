@@ -17,13 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gitrus/digikeeper-log/internal/domain/command"
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
 	"github.com/gitrus/digikeeper-log/internal/domain/query"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
 	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
 	store "github.com/gitrus/digikeeper-log/internal/infrastructure"
+	"github.com/gitrus/digikeeper-log/internal/infrastructure/sourcerepo"
 )
 
 // --- test-local JSON:API response types ---
@@ -71,12 +71,13 @@ func setupTestServer(t *testing.T) *httptest.Server {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cmdSvc := command.NewService(logStore, logger)
+	srcRepo := sourcerepo.New()
+
+	cmdSvc := command.NewService(logStore, srcRepo, logger)
 	qrySvc := query.NewService(logStore, logStore, logger)
 
-	resolveSrc := model.NewSourceResolver()
-	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
-	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
+	cmdHandler := apicmd.NewHandler(cmdSvc, srcRepo.ResolveName)
+	qryHandler := apiqry.NewHandler(qrySvc, srcRepo.ResolveName)
 	regHandler, err := apireg.NewHandler()
 	require.NoError(t, err, "init registry")
 
