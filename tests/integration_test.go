@@ -74,7 +74,7 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 	cmdSvc := command.NewService(logStore, logger, clientSources)
 	qrySvc := query.NewService(logStore, logStore, logger)
 
-	resolveSrc := model.NewSourceResolver(clientSources)
+	resolveSrc := newSourceResolver(clientSources)
 	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
 	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()
@@ -301,4 +301,17 @@ func TestRegistryGetSchema(t *testing.T) {
 	}
 	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
 	assert.Equal(t, "note", got.Type)
+}
+
+func newSourceResolver(clientSources map[string]int) model.SourceResolver {
+	reverse := make(map[int]string, len(clientSources))
+	for name, id := range clientSources {
+		reverse[id] = name
+	}
+	return func(id int) string {
+		if name, ok := reverse[id]; ok {
+			return name
+		}
+		return ""
+	}
 }

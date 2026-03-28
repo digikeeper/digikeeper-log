@@ -56,7 +56,7 @@ func run() error {
 	qrySvc := query.NewService(logStore, logStore, logger)
 
 	// Handlers
-	resolveSrc := model.NewSourceResolver(cfg.ClientSources)
+	resolveSrc := newSourceResolver(cfg.ClientSources)
 	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
 	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()
@@ -149,4 +149,17 @@ func run() error {
 
 	logger.Info("server stopped")
 	return nil
+}
+
+func newSourceResolver(clientSources map[string]int) model.SourceResolver {
+	reverse := make(map[int]string, len(clientSources))
+	for name, id := range clientSources {
+		reverse[id] = name
+	}
+	return func(id int) string {
+		if name, ok := reverse[id]; ok {
+			return name
+		}
+		return ""
+	}
 }
