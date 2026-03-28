@@ -15,11 +15,12 @@ import (
 )
 
 type Handler struct {
-	svc *domainCmd.Service
+	svc       *domainCmd.Service
+	resolveSrc httpapi.SourceResolver
 }
 
-func NewHandler(svc *domainCmd.Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *domainCmd.Service, resolveSrc httpapi.SourceResolver) *Handler {
+	return &Handler{svc: svc, resolveSrc: resolveSrc}
 }
 
 type AppendInput struct {
@@ -71,14 +72,14 @@ func (h *Handler) AppendLog(ctx context.Context, input *AppendInput) (*AppendOut
 		out := &AppendOutput{}
 		out.Status = 201
 		out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
-		out.Body.Data = httpapi.ToEnvelope(httpapi.NewEntryResource(entry))
+		out.Body.Data = httpapi.ToEnvelope(httpapi.NewEntryResource(entry, h.resolveSrc))
 		return out, nil
 
 	case errors.Is(err, errs.IndexFailed):
 		out := &AppendOutput{}
 		out.Status = 202
 		out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
-		out.Body.Data = httpapi.ToEnvelope(httpapi.NewEntryResource(entry))
+		out.Body.Data = httpapi.ToEnvelope(httpapi.NewEntryResource(entry, h.resolveSrc))
 		return out, nil
 
 	default:

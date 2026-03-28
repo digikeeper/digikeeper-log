@@ -57,8 +57,8 @@ type entryAttrs struct {
 }
 
 type entryMeta struct {
-	V int `json:"v"`
-	S int `json:"s"`
+	Version int    `json:"version"`
+	Source  string `json:"source"`
 }
 
 func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Server {
@@ -73,8 +73,9 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 	cmdSvc := command.NewService(logStore, logger, clientSources)
 	qrySvc := query.NewService(logStore, logStore, logger)
 
-	cmdHandler := apicmd.NewHandler(cmdSvc)
-	qryHandler := apiqry.NewHandler(qrySvc)
+	resolveSrc := httpapi.NewSourceResolver(clientSources)
+	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
+	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()
 	require.NoError(t, err, "init registry")
 
@@ -144,8 +145,8 @@ func TestPostEntry(t *testing.T) {
 	assert.Equal(t, "2026-03-08T10:00:00Z", got.Data.Attributes.Timestamp)
 	assert.Equal(t, []string{"work"}, got.Data.Attributes.Tags)
 	assert.Equal(t, "test", got.Data.Attributes.Data["note"])
-	assert.Equal(t, 1, got.Data.Attributes.Meta.V)
-	assert.Equal(t, 0, got.Data.Attributes.Meta.S)
+	assert.Equal(t, 1, got.Data.Attributes.Meta.Version)
+	assert.Equal(t, "", got.Data.Attributes.Meta.Source)
 	assert.NotEmpty(t, got.Data.Attributes.CreatedAt)
 }
 
@@ -197,14 +198,14 @@ func TestAppendWithClientID(t *testing.T) {
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 
 	tests := []struct {
-		name     string
-		clientID string
-		wantSrc  int
+		name       string
+		clientID   string
+		wantSource string
 	}{
-		{"known client", "mobile", 1},
-		{"another known client", "web", 2},
-		{"unknown client", "desktop", 0},
-		{"empty client", "", 0},
+		{"known client", "mobile", "mobile"},
+		{"another known client", "web", "web"},
+		{"unknown client", "desktop", ""},
+		{"empty client", "", ""},
 	}
 
 	for _, tc := range tests {
@@ -224,7 +225,7 @@ func TestAppendWithClientID(t *testing.T) {
 
 			var got singleResponse
 			require.NoError(t, json.UnmarshalRead(resp.Body, &got))
-			assert.Equal(t, tc.wantSrc, got.Data.Attributes.Meta.S)
+			assert.Equal(t, tc.wantSource, got.Data.Attributes.Meta.Source)
 		})
 	}
 }

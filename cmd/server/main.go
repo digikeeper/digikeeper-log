@@ -55,8 +55,9 @@ func run() error {
 	qrySvc := query.NewService(logStore, logStore, logger)
 
 	// Handlers
-	cmdHandler := apicmd.NewHandler(cmdSvc)
-	qryHandler := apiqry.NewHandler(qrySvc)
+	resolveSrc := httpapi.NewSourceResolver(cfg.ClientSources)
+	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
+	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()
 	if err != nil {
 		return fmt.Errorf("init registry: %w", err)

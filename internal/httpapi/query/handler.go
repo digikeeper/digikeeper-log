@@ -13,11 +13,12 @@ import (
 )
 
 type Handler struct {
-	svc *domainQuery.Service
+	svc        *domainQuery.Service
+	resolveSrc httpapi.SourceResolver
 }
 
-func NewHandler(svc *domainQuery.Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *domainQuery.Service, resolveSrc httpapi.SourceResolver) *Handler {
+	return &Handler{svc: svc, resolveSrc: resolveSrc}
 }
 
 type QueryInput struct {
@@ -63,7 +64,7 @@ func (h *Handler) QueryLogs(ctx context.Context, input *QueryInput) (*QueryOutpu
 	out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
 	out.Body.Data = make([]httpapi.ResourceEnvelope, len(results))
 	for i, e := range results {
-		out.Body.Data[i] = httpapi.ToEnvelope(httpapi.NewEntryResource(e))
+		out.Body.Data[i] = httpapi.ToEnvelope(httpapi.NewEntryResource(e, h.resolveSrc))
 	}
 	return out, nil
 }
