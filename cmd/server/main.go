@@ -57,7 +57,10 @@ func run() error {
 	// Handlers
 	cmdHandler := apicmd.NewHandler(cmdSvc)
 	qryHandler := apiqry.NewHandler(qrySvc)
-	regHandler := apireg.NewHandler()
+	regHandler, err := apireg.NewHandler()
+	if err != nil {
+		return fmt.Errorf("init registry: %w", err)
+	}
 
 	// API
 	mux := http.NewServeMux()

@@ -75,7 +75,8 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 
 	cmdHandler := apicmd.NewHandler(cmdSvc)
 	qryHandler := apiqry.NewHandler(qrySvc)
-	regHandler := apireg.NewHandler()
+	regHandler, err := apireg.NewHandler()
+	require.NoError(t, err, "init registry")
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, httpapi.NewHumaConfig("Digikeeper Log", "1.0.0"))
