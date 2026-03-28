@@ -195,7 +195,7 @@ func TestRead_EmptyFile(t *testing.T) {
 }
 
 func TestMatchFilters_TagInDataNotMatched(t *testing.T) {
-	line := []byte(`{"tags":["a"],"timestamp":"2026-03-01T10:00:00Z","data":{"note":"meeting"}}`)
+	line := []byte(`{"tags":["a"],"ts":"2026-03-01T10:00:00Z","d":{"note":"meeting"}}`)
 	f := &ReadFilters{Tags: map[string]struct{}{"meeting": {}}}
 	if matchFilters(line, f) {
 		t.Fatal("expected false: 'meeting' is in data, not in tags")
@@ -203,7 +203,7 @@ func TestMatchFilters_TagInDataNotMatched(t *testing.T) {
 }
 
 func TestMatchFilters_EmptyTagsArray(t *testing.T) {
-	line := []byte(`{"tags":[],"timestamp":"2026-03-01T10:00:00Z"}`)
+	line := []byte(`{"tags":[],"ts":"2026-03-01T10:00:00Z"}`)
 	f := &ReadFilters{Tags: map[string]struct{}{"work": {}}}
 	if matchFilters(line, f) {
 		t.Fatal("expected false: tags array is empty")
@@ -211,7 +211,7 @@ func TestMatchFilters_EmptyTagsArray(t *testing.T) {
 }
 
 func TestMatchFilters_NoTagsField(t *testing.T) {
-	line := []byte(`{"timestamp":"2026-03-01T10:00:00Z","data":{}}`)
+	line := []byte(`{"ts":"2026-03-01T10:00:00Z","d":{}}`)
 	f := &ReadFilters{Tags: map[string]struct{}{"work": {}}}
 	if matchFilters(line, f) {
 		t.Fatal("expected false: no tags field")

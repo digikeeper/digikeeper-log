@@ -11,16 +11,16 @@ type Storage interface {
 	Append(ctx context.Context, entry model.Entry) error
 }
 
+type SourceRepo interface {
+	ResolveID(clientName string) int
+}
+
 type Service struct {
-	storage       Storage
-	logger        *slog.Logger
-	clientSources map[string]int
+	storage    Storage
+	sourceRepo SourceRepo
+	logger     *slog.Logger
 }
 
-func NewService(s Storage, logger *slog.Logger, clientSources map[string]int) *Service {
-	return &Service{storage: s, logger: logger, clientSources: clientSources}
-}
-
-func (s *Service) ResolveSrc(clientID string) int {
-	return s.clientSources[clientID]
+func NewService(s Storage, sr SourceRepo, logger *slog.Logger) *Service {
+	return &Service{storage: s, sourceRepo: sr, logger: logger}
 }

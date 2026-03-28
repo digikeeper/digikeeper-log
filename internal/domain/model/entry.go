@@ -1,6 +1,8 @@
 package model
 
-import "time"
+import (
+	"time"
+)
 
 type EntryMeta struct {
 	Version int `json:"v"`
@@ -9,12 +11,13 @@ type EntryMeta struct {
 
 type Entry struct {
 	ID        string         `json:"id"`
-	Meta      EntryMeta      `json:"meta"`
+	Type      string         `json:"type"`
+	Meta      EntryMeta      `json:"m"`
 	RequestID string         `json:"request_id"`
 	CreatedAt time.Time      `json:"created_at"`
-	Timestamp time.Time      `json:"timestamp"`
+	Timestamp time.Time      `json:"ts"`
 	Tags      []string       `json:"tags"`
-	Data      map[string]any `json:"data"`
+	Data      map[string]any `json:"d"`
 }
 
 type SearchParams struct {
