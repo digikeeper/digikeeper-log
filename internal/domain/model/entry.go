@@ -1,6 +1,23 @@
 package model
 
-import "time"
+import (
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+//go:embed sources.json
+var sourcesRaw []byte
+
+// ClientSources maps client name → numeric source ID, loaded from sources.json.
+var ClientSources map[string]int
+
+func init() {
+	if err := json.Unmarshal(sourcesRaw, &ClientSources); err != nil {
+		panic(fmt.Sprintf("model: unmarshal sources.json: %v", err))
+	}
+}
 
 type EntryMeta struct {
 	Version int `json:"v"`
@@ -20,6 +37,25 @@ type Entry struct {
 
 // SourceResolver maps numeric source IDs back to their string names.
 type SourceResolver func(int) string
+
+// NewSourceResolver builds a SourceResolver from ClientSources.
+func NewSourceResolver() SourceResolver {
+	reverse := make(map[int]string, len(ClientSources))
+	for name, id := range ClientSources {
+		reverse[id] = name
+	}
+	return func(id int) string {
+		if name, ok := reverse[id]; ok {
+			return name
+		}
+		return ""
+	}
+}
+
+// ResolveSrc returns the numeric source ID for the given client name.
+func ResolveSrc(clientID string) int {
+	return ClientSources[clientID]
+}
 
 type SearchParams struct {
 	Tag   string

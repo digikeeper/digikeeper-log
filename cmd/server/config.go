@@ -24,10 +24,9 @@ type LogStorageConfig struct {
 }
 
 type Config struct {
-	Common        CommonConfig     `yaml:"common"`
-	LogStorage    LogStorageConfig `yaml:"log_storage" env-prefix:"LOG_STORAGE_"`
-	API           APIConfig        `yaml:"api" env-prefix:"API_"`
-	ClientSources map[string]int   `yaml:"client_sources"`
+	Common     CommonConfig     `yaml:"common"`
+	LogStorage LogStorageConfig `yaml:"log_storage" env-prefix:"LOG_STORAGE_"`
+	API        APIConfig        `yaml:"api" env-prefix:"API_"`
 }
 
 func (c *Config) IsDevEnv() bool {

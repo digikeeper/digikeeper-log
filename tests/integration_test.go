@@ -62,7 +62,7 @@ type entryMeta struct {
 	Source  string `json:"source"`
 }
 
-func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Server {
+func setupTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
 	logStore, err := store.NewStore(t.TempDir())
@@ -71,10 +71,10 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	cmdSvc := command.NewService(logStore, logger, clientSources)
+	cmdSvc := command.NewService(logStore, logger)
 	qrySvc := query.NewService(logStore, logStore, logger)
 
-	resolveSrc := newSourceResolver(clientSources)
+	resolveSrc := model.NewSourceResolver()
 	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
 	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()
@@ -125,7 +125,7 @@ func setupTestServer(t *testing.T, clientSources map[string]int) *httptest.Serve
 }
 
 func TestPostEntry(t *testing.T) {
-	srv := setupTestServer(t, nil)
+	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 	// act
@@ -152,7 +152,7 @@ func TestPostEntry(t *testing.T) {
 }
 
 func TestPostThenGet(t *testing.T) {
-	srv := setupTestServer(t, nil)
+	srv := setupTestServer(t)
 
 	// act POST
 	for _, postBody := range []string{
@@ -193,8 +193,7 @@ func TestPostThenGet(t *testing.T) {
 }
 
 func TestAppendWithClientID(t *testing.T) {
-	clientSources := map[string]int{"mobile": 1, "web": 2}
-	srv := setupTestServer(t, clientSources)
+	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 
@@ -232,7 +231,7 @@ func TestAppendWithClientID(t *testing.T) {
 }
 
 func TestAppendPassesRequestID(t *testing.T) {
-	srv := setupTestServer(t, nil)
+	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/v1/logs", strings.NewReader(body))
@@ -252,7 +251,7 @@ func TestAppendPassesRequestID(t *testing.T) {
 }
 
 func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
-	srv := setupTestServer(t, nil)
+	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 	resp, err := http.Post(srv.URL+"/v1/logs", "application/json", strings.NewReader(body))
@@ -267,7 +266,7 @@ func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
 }
 
 func TestRegistryListSchemas(t *testing.T) {
-	srv := setupTestServer(t, nil)
+	srv := setupTestServer(t)
 
 	resp, err := http.Get(srv.URL + "/v1/registry")
 	require.NoError(t, err)
@@ -287,7 +286,7 @@ func TestRegistryListSchemas(t *testing.T) {
 }
 
 func TestRegistryGetSchema(t *testing.T) {
-	srv := setupTestServer(t, nil)
+	srv := setupTestServer(t)
 
 	resp, err := http.Get(srv.URL + "/v1/registry/note")
 	require.NoError(t, err)
@@ -301,17 +300,4 @@ func TestRegistryGetSchema(t *testing.T) {
 	}
 	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
 	assert.Equal(t, "note", got.Type)
-}
-
-func newSourceResolver(clientSources map[string]int) model.SourceResolver {
-	reverse := make(map[int]string, len(clientSources))
-	for name, id := range clientSources {
-		reverse[id] = name
-	}
-	return func(id int) string {
-		if name, ok := reverse[id]; ok {
-			return name
-		}
-		return ""
-	}
 }

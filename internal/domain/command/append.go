@@ -22,7 +22,7 @@ func (s *Service) AppendEntry(
 		Type: req.Type,
 		Meta: model.EntryMeta{
 			Version: 1,
-			Src:     s.ResolveSrc(req.ClientID),
+			Src:     model.ResolveSrc(req.ClientID),
 		},
 		RequestID: requestID,
 		CreatedAt: time.Now().UTC(),

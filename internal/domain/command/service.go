@@ -12,15 +12,10 @@ type Storage interface {
 }
 
 type Service struct {
-	storage       Storage
-	logger        *slog.Logger
-	clientSources map[string]int
+	storage Storage
+	logger  *slog.Logger
 }
 
-func NewService(s Storage, logger *slog.Logger, clientSources map[string]int) *Service {
-	return &Service{storage: s, logger: logger, clientSources: clientSources}
-}
-
-func (s *Service) ResolveSrc(clientID string) int {
-	return s.clientSources[clientID]
+func NewService(s Storage, logger *slog.Logger) *Service {
+	return &Service{storage: s, logger: logger}
 }

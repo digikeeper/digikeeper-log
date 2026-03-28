@@ -52,11 +52,11 @@ func run() error {
 	defer func() { _ = logStore.Close() }()
 
 	// Services
-	cmdSvc := command.NewService(logStore, logger, cfg.ClientSources)
+	cmdSvc := command.NewService(logStore, logger)
 	qrySvc := query.NewService(logStore, logStore, logger)
 
 	// Handlers
-	resolveSrc := newSourceResolver(cfg.ClientSources)
+	resolveSrc := model.NewSourceResolver()
 	cmdHandler := apicmd.NewHandler(cmdSvc, resolveSrc)
 	qryHandler := apiqry.NewHandler(qrySvc, resolveSrc)
 	regHandler, err := apireg.NewHandler()
@@ -149,17 +149,4 @@ func run() error {
 
 	logger.Info("server stopped")
 	return nil
-}
-
-func newSourceResolver(clientSources map[string]int) model.SourceResolver {
-	reverse := make(map[int]string, len(clientSources))
-	for name, id := range clientSources {
-		reverse[id] = name
-	}
-	return func(id int) string {
-		if name, ok := reverse[id]; ok {
-			return name
-		}
-		return ""
-	}
 }
