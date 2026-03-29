@@ -8,19 +8,19 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 	"github.com/gitrus/digikeeper-log/internal/domain/errs"
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
 )
 
 func (s *Service) AppendEntry(
 	ctx context.Context,
 	req AppendRequest,
 	requestID string,
-) (model.Entry, error) {
-	entry := model.Entry{
-		ID: uuid.NewString(),
+) (core.Entry, error) {
+	entry := core.Entry{
+		ID:   uuid.NewString(),
 		Type: req.Type,
-		Meta: model.EntryMeta{
+		Meta: core.EntryMeta{
 			Version: 1,
 			Src:     s.sourceRepo.ResolveID(req.ClientID),
 		},
@@ -38,7 +38,7 @@ func (s *Service) AppendEntry(
 	}
 
 	if err := s.storage.Append(ctx, entry); err != nil {
-		if errors.Is(err, errs.IndexFailed) {
+		if errors.Is(err, errs.ErrIndexFailed) {
 			s.logger.ErrorContext(ctx, "meta index failed — entry is durable in storage",
 				slog.String("entry_id", entry.ID),
 				slog.String("request_id", requestID),
@@ -46,7 +46,7 @@ func (s *Service) AppendEntry(
 			)
 			return entry, err
 		}
-		return model.Entry{}, err
+		return core.Entry{}, err
 	}
 
 	s.logger.InfoContext(ctx, "entry appended and indexed",

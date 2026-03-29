@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof" // /debug/pprof/* and /debug/vars
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -15,13 +16,15 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	sloghttp "github.com/samber/slog-http"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command"
+	command "github.com/gitrus/digikeeper-log/internal/domain/command/append"
 	"github.com/gitrus/digikeeper-log/internal/domain/query"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
 	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
-	store "github.com/gitrus/digikeeper-log/internal/infrastructure"
+	store "github.com/gitrus/digikeeper-log/internal/infrastructure/commandstore"
+	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
+	"github.com/gitrus/digikeeper-log/internal/infrastructure/querystore"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/sourcerepo"
 	"github.com/gitrus/digikeeper-log/pkg/chain"
 	"github.com/gitrus/digikeeper-log/pkg/healthz"
@@ -45,18 +48,30 @@ func run() error {
 
 	// Storage
 	dataPath := cfg.LogStorage.Path
-	logStore, err := store.NewStore(dataPath)
+	if err := os.MkdirAll(dataPath, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dataPath, err)
+	}
+
+	idx, err := index.New(filepath.Join(dataPath, "index.db"))
+	if err != nil {
+		return fmt.Errorf("init index: %w", err)
+	}
+	defer func() { _ = idx.Close() }()
+
+	logStore, err := store.NewStore(dataPath, idx)
 	if err != nil {
 		return fmt.Errorf("init storage: %w", err)
 	}
 	defer func() { _ = logStore.Close() }()
+
+	qryStore := querystore.NewStore(filepath.Join(dataPath, "dk_logs"), idx)
 
 	// Sources
 	srcRepo := sourcerepo.New()
 
 	// Services
 	cmdSvc := command.NewService(logStore, srcRepo, logger)
-	qrySvc := query.NewService(logStore, logStore, logger)
+	qrySvc := query.NewService(qryStore, qryStore, logger)
 
 	// Handlers
 	cmdHandler := apicmd.NewHandler(cmdSvc, srcRepo.ResolveName)
@@ -115,9 +130,9 @@ func run() error {
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      handler,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  6 * time.Second,
+		WriteTimeout: 12 * time.Second,
+		IdleTimeout:  18 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

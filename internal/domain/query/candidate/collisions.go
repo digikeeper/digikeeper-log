@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
 )
 
 // Collision represents a log entry that has unresolved candidates.
 type Collision struct {
-	EntryID    string           `json:"entry_id"`
-	Partition  string           `json:"partition"`
+	EntryID    string            `json:"entry_id"`
+	Partition  core.Partition    `json:"partition"`
 	Candidates []model.Candidate `json:"candidates"`
 }
 
@@ -20,7 +21,7 @@ type Collision struct {
 // candidates.
 func (s *Service) ListCollisions(
 	ctx context.Context,
-	partition string,
+	partition core.Partition,
 ) ([]Collision, error) {
 	pending, err := s.storage.ListPending(ctx, partition)
 	if err != nil {
@@ -47,7 +48,7 @@ func (s *Service) ListCollisions(
 	}
 
 	s.logger.InfoContext(ctx, "listed collisions",
-		slog.String("partition", partition),
+		slog.String("partition", partition.String()),
 		slog.Int("entries_with_candidates", len(collisions)),
 		slog.Int("total_candidates", len(pending)),
 	)

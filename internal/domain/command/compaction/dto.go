@@ -3,28 +3,18 @@ package compaction
 import (
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
-// CompactRequest specifies which partition to compact and the pre-validated
-// resolutions. Resolutions must be validated by the candidate service before
-// being passed here.
+// CompactRequest specifies which partition to compact.
+// The compactor reads applied candidates from storage directly.
 type CompactRequest struct {
-	Partition   string             `json:"partition"`
-	Resolutions []model.Resolution `json:"resolutions"`
-}
-
-// ResolvedCandidate pairs a candidate with its resolution action.
-type ResolvedCandidate struct {
-	Candidate model.Candidate
-	Action    model.ResolutionAction
+	Partition core.Partition `json:"partition"`
 }
 
 // JournalEvent records a completed compaction for the audit trail.
 type JournalEvent struct {
-	Partition      string    `json:"partition"`
-	ResolvedCount  int       `json:"resolved_count"`
-	AppliedCount   int       `json:"applied_count"`
-	DismissedCount int       `json:"dismissed_count"`
-	CompletedAt    time.Time `json:"completed_at"`
+	Partition    core.Partition `json:"partition"`
+	AppliedCount int            `json:"applied_count"`
+	CompletedAt  time.Time      `json:"completed_at"`
 }

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
 var (
 	benchBoolSink  bool
 	benchBytesSink []byte
-	benchEntrySink model.Entry
+	benchEntrySink core.Entry
 )
 
 type benchProfile struct {
@@ -25,7 +25,7 @@ type benchProfile struct {
 }
 
 type benchData struct {
-	entry          model.Entry
+	entry          core.Entry
 	line           []byte
 	filtersMatch   ReadFilters
 	filtersNoMatch ReadFilters
@@ -124,7 +124,7 @@ func BenchmarkEntryUnmarshal(b *testing.B) {
 
 	b.Run("jsonv2", func(b *testing.B) {
 		for b.Loop() {
-			var out model.Entry
+			var out core.Entry
 			if err := jsonv2.Unmarshal(data.line, &out); err != nil {
 				b.Fatal(err)
 			}
@@ -134,7 +134,7 @@ func BenchmarkEntryUnmarshal(b *testing.B) {
 
 	b.Run("stdjson", func(b *testing.B) {
 		for b.Loop() {
-			var out model.Entry
+			var out core.Entry
 			if err := stdjson.Unmarshal(data.line, &out); err != nil {
 				b.Fatal(err)
 			}
@@ -155,9 +155,9 @@ func buildBenchData(b *testing.B) benchData {
 	}
 
 	payload := strings.Repeat("x", profile.dataBytes)
-	entry := model.Entry{
+	entry := core.Entry{
 		ID: "bench-entry",
-		Meta: model.EntryMeta{
+		Meta: core.EntryMeta{
 			Version: 1,
 			Src:     1,
 		},
@@ -272,7 +272,7 @@ func matchFiltersBy2FieldUnmarshalStdJSON(line []byte, f *ReadFilters) bool {
 }
 
 func matchFiltersByFullUnmarshalJSONV2(line []byte, f *ReadFilters) bool {
-	var e model.Entry
+	var e core.Entry
 	if err := jsonv2.Unmarshal(line, &e); err != nil {
 		return false
 	}
@@ -280,7 +280,7 @@ func matchFiltersByFullUnmarshalJSONV2(line []byte, f *ReadFilters) bool {
 }
 
 func matchFiltersByFullUnmarshalStdJSON(line []byte, f *ReadFilters) bool {
-	var e model.Entry
+	var e core.Entry
 	if err := stdjson.Unmarshal(line, &e); err != nil {
 		return false
 	}

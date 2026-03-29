@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
 var mar1_10 = time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
 var mar1_14 = time.Date(2026, 3, 1, 14, 0, 0, 0, time.UTC)
 var mar1_20 = time.Date(2026, 3, 1, 20, 0, 0, 0, time.UTC)
 
-func testEntries() []model.Entry {
-	return []model.Entry{
+func testEntries() []core.Entry {
+	return []core.Entry{
 		{ID: "1", Timestamp: mar1_10, Tags: []string{"work"}, Data: map[string]any{"note": "morning standup"}},
 		{ID: "2", Timestamp: mar1_14, Tags: []string{"work", "meeting"}, Data: map[string]any{"note": "sprint review"}},
 		{ID: "3", Timestamp: mar1_20, Tags: []string{"personal"}, Data: map[string]any{"note": "gym"}},
@@ -36,9 +36,16 @@ func setupWriter(t *testing.T) (*JSONLWriter, string) {
 	return w, relPath
 }
 
+func closeWriter(t *testing.T, w *JSONLWriter) {
+	t.Helper()
+	if err := w.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+}
+
 func TestRead_NoFilters(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	entries, err := w.Read(relPath)
 	if err != nil {
@@ -51,7 +58,7 @@ func TestRead_NoFilters(t *testing.T) {
 
 func TestRead_WithTags_SingleMatch(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	entries, err := w.Read(relPath, WithTags("meeting"))
 	if err != nil {
@@ -67,7 +74,7 @@ func TestRead_WithTags_SingleMatch(t *testing.T) {
 
 func TestRead_WithTags_MultipleMatch(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	entries, err := w.Read(relPath, WithTags("work"))
 	if err != nil {
@@ -80,7 +87,7 @@ func TestRead_WithTags_MultipleMatch(t *testing.T) {
 
 func TestRead_WithTags_NoMatch(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	entries, err := w.Read(relPath, WithTags("travel"))
 	if err != nil {
@@ -93,7 +100,7 @@ func TestRead_WithTags_NoMatch(t *testing.T) {
 
 func TestRead_WithTimeRange(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	from := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 3, 1, 22, 0, 0, 0, time.UTC)
@@ -108,7 +115,7 @@ func TestRead_WithTimeRange(t *testing.T) {
 
 func TestRead_WithTimeRange_FromOnly(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	from := time.Date(2026, 3, 1, 15, 0, 0, 0, time.UTC)
 	entries, err := w.Read(relPath, WithTimeRange(from, time.Time{}))
@@ -125,7 +132,7 @@ func TestRead_WithTimeRange_FromOnly(t *testing.T) {
 
 func TestRead_WithTimeRange_ToOnly(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	to := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	entries, err := w.Read(relPath, WithTimeRange(time.Time{}, to))
@@ -142,7 +149,7 @@ func TestRead_WithTimeRange_ToOnly(t *testing.T) {
 
 func TestRead_CombinedFilters(t *testing.T) {
 	w, relPath := setupWriter(t)
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	from := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 3, 1, 23, 0, 0, 0, time.UTC)
@@ -160,7 +167,7 @@ func TestRead_CombinedFilters(t *testing.T) {
 
 func TestRead_FileNotFound(t *testing.T) {
 	w := NewJSONLWriter(t.TempDir(), "logs")
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	entries, err := w.Read("nonexistent/path.jsonl")
 	if err != nil {
@@ -183,7 +190,7 @@ func TestRead_EmptyFile(t *testing.T) {
 	}
 
 	w := NewJSONLWriter(dir, "logs")
-	defer w.Close()
+	defer closeWriter(t, w)
 
 	entries, err := w.Read(relPath)
 	if err != nil {

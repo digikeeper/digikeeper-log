@@ -13,13 +13,13 @@ import (
 
 	"github.com/tidwall/gjson"
 
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 	"github.com/gitrus/digikeeper-log/internal/domain/errs"
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
 )
 
 const maxEntrySizeBytes = 10 * 1024 * 1024 // 10 MiB
 
-// JSONLWriter manages per-day JSONL log files for appending and reading.
+// JSONLWriter manages JSONL log partition files for appending and reading.
 //
 // Concurrency model:
 //   - files (sync.Map) provides lock-free lookup of open file descriptors.
@@ -65,21 +65,21 @@ func NewJSONLWriter(dir, logType string) *JSONLWriter {
 	}
 }
 
-func (w *JSONLWriter) Append(entry model.Entry) (string, error) {
+func (w *JSONLWriter) Append(entry core.Entry) (string, error) {
 	line, err := json.Marshal(entry)
 	if err != nil {
-		return "", fmt.Errorf("jsonl: marshal: %w, %w", err, errs.StorageCommonError)
+		return "", fmt.Errorf("jsonl: marshal: %w, %w", err, errs.ErrStorageCommon)
 	}
 	line = append(line, '\n')
 
-	relPath := w.BuildRelPath(entry.Timestamp)
+	relPath := w.BuildRelPath(core.PartitionFromTime(entry.Timestamp))
 	lfd, err := w.getOrCreate(relPath)
 	if err != nil {
 		return "", err
 	}
 
 	if _, err := lfd.fd.Write(line); err != nil {
-		return "", fmt.Errorf("jsonl: write: %w, %w", err, errs.StorageCommonError)
+		return "", fmt.Errorf("jsonl: write: %w, %w", err, errs.ErrStorageCommon)
 	}
 	return relPath, nil
 }
@@ -98,13 +98,13 @@ func (w *JSONLWriter) getOrCreate(relPath string) (*logFD, error) {
 	if _, err := os.Stat(dir); err != nil {
 		err := os.MkdirAll(dir, 0o755)
 		if err != nil {
-			return nil, fmt.Errorf("jsonl: mkdir %s: %w, %w", dir, err, errs.StorageCommonError)
+			return nil, fmt.Errorf("jsonl: mkdir %s: %w, %w", dir, err, errs.ErrStorageCommon)
 		}
 	}
 
 	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
-		return nil, fmt.Errorf("jsonl: open %s: %w, %w", fpath, err, errs.StorageCommonError)
+		return nil, fmt.Errorf("jsonl: open %s: %w, %w", fpath, err, errs.ErrStorageCommon)
 	}
 
 	lfd := &logFD{fd: f, relPath: relPath}
@@ -115,7 +115,7 @@ func (w *JSONLWriter) getOrCreate(relPath string) (*logFD, error) {
 	return lfd, nil
 }
 
-func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]model.Entry, error) {
+func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]core.Entry, error) {
 	var filters ReadFilters
 	for _, o := range opts {
 		o(&filters)
@@ -132,7 +132,7 @@ func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]model.Entry, e
 	}
 	defer func() { _ = f.Close() }()
 
-	var entries []model.Entry
+	var entries []core.Entry
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, bufio.MaxScanTokenSize), maxEntrySizeBytes)
 	for sc.Scan() {
@@ -143,7 +143,7 @@ func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]model.Entry, e
 		if hasFilters && !matchFilters(line, &filters) {
 			continue
 		}
-		var e model.Entry
+		var e core.Entry
 		if err := json.Unmarshal(line, &e); err != nil {
 			return nil, fmt.Errorf("jsonl: unmarshal in %s: %w", relPath, err)
 		}
@@ -196,11 +196,55 @@ func (w *JSONLWriter) Close() error {
 	return errors.Join(errs...)
 }
 
-// BuildRelPath returns the partition-relative path for a given timestamp.
-func (w *JSONLWriter) BuildRelPath(ts time.Time) string {
+// ReplaceFile atomically rewrites relPath with entries:
+//
+//	write tmp → fsync → rename → evict cache
+func (w *JSONLWriter) ReplaceFile(relPath string, entries []core.Entry) error {
+	fpath := filepath.Join(w.dir, relPath)
+	tmpPath := fpath + ".compact.tmp"
+
+	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("jsonl: replace: open tmp: %w", err)
+	}
+
+	for _, entry := range entries {
+		line, err := json.Marshal(entry)
+		if err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmpPath)
+			return fmt.Errorf("jsonl: replace: marshal: %w", err)
+		}
+		if _, err := f.Write(append(line, '\n')); err != nil {
+			_ = f.Close()
+			_ = os.Remove(tmpPath)
+			return fmt.Errorf("jsonl: replace: write: %w", err)
+		}
+	}
+
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("jsonl: replace: sync: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("jsonl: replace: close: %w", err)
+	}
+	if err := os.Rename(tmpPath, fpath); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("jsonl: replace: rename: %w", err)
+	}
+
+	_ = w.evict(relPath)
+	return nil
+}
+
+// BuildRelPath returns the partition-relative path for the given partition.
+func (w *JSONLWriter) BuildRelPath(p core.Partition) string {
 	return fmt.Sprintf(
 		"%d/%s_%s.jsonl",
-		ts.Year(), ts.Format("2006-01-02"), w.logType,
+		p.Year(), p.String(), w.logType,
 	)
 }
 
@@ -209,10 +253,8 @@ func (w *JSONLWriter) Dir() string {
 	return w.dir
 }
 
-// Evict closes and removes the cached file descriptor for the given
-// partition path. The next Append to this partition will reopen the file
-// via getOrCreate. Must be called while holding an exclusive partition lock.
-func (w *JSONLWriter) Evict(relPath string) error {
+// evict closes and removes the cached file descriptor for the given partition path.
+func (w *JSONLWriter) evict(relPath string) error {
 	v, ok := w.files.LoadAndDelete(relPath)
 	if !ok {
 		return nil

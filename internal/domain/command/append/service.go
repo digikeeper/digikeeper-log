@@ -4,11 +4,11 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
 type Storage interface {
-	Append(ctx context.Context, entry model.Entry) error
+	Append(ctx context.Context, entry core.Entry) error
 }
 
 type SourceRepo interface {

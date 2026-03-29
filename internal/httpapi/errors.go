@@ -1,9 +1,14 @@
 package httpapi
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/gitrus/digikeeper-log/internal/domain/errs"
 )
 
 type jsonAPIError struct {
@@ -18,6 +23,24 @@ func (e *jsonAPIError) Error() string {
 	return e.Errors[0].Title
 }
 func (e *jsonAPIError) GetStatus() int { return e.status }
+
+// DomainError maps a domain error to the appropriate huma HTTP error.
+// Unknown/storage errors are logged and returned as 500.
+func DomainError(ctx context.Context, err error) error {
+	switch {
+	case errors.Is(err, errs.ErrInvalidInput):
+		return huma.Error422UnprocessableEntity(err.Error())
+	case errors.Is(err, errs.ErrNotFound):
+		return huma.Error404NotFound(err.Error())
+	case errors.Is(err, errs.ErrConflict):
+		return huma.Error409Conflict(err.Error())
+	case errors.Is(err, errs.ErrCommonDomain):
+		return huma.Error422UnprocessableEntity(err.Error())
+	default:
+		slog.Default().ErrorContext(ctx, "unexpected domain error", slog.Any("error", err))
+		return huma.Error500InternalServerError("internal error")
+	}
+}
 
 // InitHumaErrors overrides huma.NewError to produce JSON:API-shaped error responses.
 func InitHumaErrors() {
@@ -34,7 +57,8 @@ func InitHumaErrors() {
 					Status: fmt.Sprintf("%d", status),
 					Title:  msg,
 				}
-				if d, ok := err.(*huma.ErrorDetail); ok {
+				d := &huma.ErrorDetail{}
+				if errors.As(err, &d) {
 					detail.Detail = d.Message
 				} else {
 					detail.Detail = err.Error()

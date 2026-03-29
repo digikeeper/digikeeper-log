@@ -3,28 +3,27 @@ package command
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	sloghttp "github.com/samber/slog-http"
 
-	domainCmd "github.com/gitrus/digikeeper-log/internal/domain/command"
+	domainAppend "github.com/gitrus/digikeeper-log/internal/domain/command/append"
 	"github.com/gitrus/digikeeper-log/internal/domain/errs"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 )
 
 type Handler struct {
-	svc        *domainCmd.Service
+	svc        *domainAppend.Service
 	resolveSrc func(int) string
 }
 
-func NewHandler(svc *domainCmd.Service, resolveSrc func(int) string) *Handler {
+func NewHandler(svc *domainAppend.Service, resolveSrc func(int) string) *Handler {
 	return &Handler{svc: svc, resolveSrc: resolveSrc}
 }
 
 type AppendInput struct {
-	ClientID string `header:"X-Client-Id" required:"true" doc:"Client identifier for source tracking"`
+	ClientID string `header:"X-Client-Id" doc:"Client identifier for source tracking"`
 	Body     struct {
 		Type      string         `json:"type" doc:"Entry type"`
 		Timestamp time.Time      `json:"timestamp" required:"true" doc:"Event timestamp"`
@@ -57,7 +56,7 @@ type AppendOutput struct {
 }
 
 func (h *Handler) AppendLog(ctx context.Context, input *AppendInput) (*AppendOutput, error) {
-	req := domainCmd.AppendRequest{
+	req := domainAppend.AppendRequest{
 		Type:      input.Body.Type,
 		Timestamp: input.Body.Timestamp,
 		Tags:      input.Body.Tags,
@@ -72,18 +71,17 @@ func (h *Handler) AppendLog(ctx context.Context, input *AppendInput) (*AppendOut
 		out := &AppendOutput{}
 		out.Status = 201
 		out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
-		out.Body.Data = httpapi.ToEnvelope(httpapi.NewEntryResource(entry, h.resolveSrc))
+		out.Body.Data = httpapi.ToEnvelope(NewEntryResource(entry, h.resolveSrc))
 		return out, nil
 
-	case errors.Is(err, errs.IndexFailed):
+	case errors.Is(err, errs.ErrIndexFailed):
 		out := &AppendOutput{}
 		out.Status = 202
 		out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
-		out.Body.Data = httpapi.ToEnvelope(httpapi.NewEntryResource(entry, h.resolveSrc))
+		out.Body.Data = httpapi.ToEnvelope(NewEntryResource(entry, h.resolveSrc))
 		return out, nil
 
 	default:
-		slog.Default().ErrorContext(ctx, "append failed", slog.Any("error", err))
-		return nil, huma.Error500InternalServerError("Storage Failure")
+		return nil, httpapi.DomainError(ctx, err)
 	}
 }

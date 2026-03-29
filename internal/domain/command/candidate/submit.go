@@ -8,20 +8,26 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/command/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
 // Submit creates a candidate replacement for an existing log entry.
-// It verifies the original entry exists, then appends the candidate to pending.
 func (s *Service) Submit(
 	ctx context.Context,
 	req SubmitRequest,
 	requestID string,
 ) (model.Candidate, error) {
-	partitionHint := req.OriginalTimestamp.Format("2006-01-02")
+	partition := core.PartitionFromTime(req.OriginalTimestamp)
+
+	releaseCandidate, err := s.candidateLocker.SharedLock(ctx, partition)
+	if err != nil {
+		return model.Candidate{}, fmt.Errorf("candidate: lock candidate partition %s: %w", partition, err)
+	}
+	defer releaseCandidate()
 
 	// Verify the original entry exists in the expected partition.
-	original, err := s.logStorage.ReadEntry(ctx, req.EntryID, partitionHint)
+	original, err := s.logStorage.ReadEntry(ctx, req.EntryID, partition)
 	if err != nil {
 		return model.Candidate{}, fmt.Errorf("candidate: lookup original %s: %w", req.EntryID, err)
 	}

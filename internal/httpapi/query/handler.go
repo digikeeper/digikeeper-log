@@ -3,12 +3,13 @@ package query
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
 	domainQuery "github.com/gitrus/digikeeper-log/internal/domain/query"
+	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 )
 
@@ -22,21 +23,45 @@ func NewHandler(svc *domainQuery.Service, resolveSrc func(int) string) *Handler 
 }
 
 type QueryInput struct {
-	Tag   string    `query:"tag" doc:"Filter by tag"`
+	Tags  []string  `query:"tag" doc:"Filter by tag (OR, repeatable)"`
+	Types []string  `query:"type" doc:"Filter by entry type (OR, repeatable)"`
 	From  time.Time `query:"from" doc:"Start time (RFC3339)"`
 	To    time.Time `query:"to" doc:"End time (RFC3339)"`
 	Limit int       `query:"limit" minimum:"1" maximum:"1000" default:"100" doc:"Result limit"`
 }
 
 func (i *QueryInput) Resolve(ctx huma.Context) []error {
+	var errs []error
+
 	if !i.From.IsZero() && !i.To.IsZero() && i.From.After(i.To) {
-		return []error{&huma.ErrorDetail{
+		errs = append(errs, &huma.ErrorDetail{
 			Location: "query.from",
 			Message:  "'from' must not be after 'to'",
 			Value:    i.From,
-		}}
+		})
 	}
-	return nil
+
+	errs = append(errs, validateQueryValues("tag", i.Tags)...)
+	errs = append(errs, validateQueryValues("type", i.Types)...)
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs
+}
+
+func validateQueryValues(name string, values []string) []error {
+	var errs []error
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			continue
+		}
+		errs = append(errs, &huma.ErrorDetail{
+			Location: "query." + name,
+			Message:  "'" + name + "' must not be empty",
+			Value:    value,
+		})
+	}
+	return errs
 }
 
 type QueryOutput struct {
@@ -48,7 +73,8 @@ type QueryOutput struct {
 
 func (h *Handler) QueryLogs(ctx context.Context, input *QueryInput) (*QueryOutput, error) {
 	params := model.SearchParams{
-		Tag:   input.Tag,
+		Tags:  input.Tags,
+		Types: input.Types,
 		From:  input.From,
 		To:    input.To,
 		Limit: input.Limit,
@@ -64,7 +90,7 @@ func (h *Handler) QueryLogs(ctx context.Context, input *QueryInput) (*QueryOutpu
 	out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
 	out.Body.Data = make([]httpapi.ResourceEnvelope, len(results))
 	for i, e := range results {
-		out.Body.Data[i] = httpapi.ToEnvelope(httpapi.NewEntryResource(e, h.resolveSrc))
+		out.Body.Data[i] = httpapi.ToEnvelope(NewEntryResource(e, h.resolveSrc))
 	}
 	return out, nil
 }
