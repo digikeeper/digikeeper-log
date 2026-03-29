@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -43,14 +44,42 @@ func NewStore(dataPath string) (*Store, error) {
 		return nil, fmt.Errorf("store: open index: %w", err)
 	}
 
-	return &Store{
+	st := &Store{
 		flock:     flock,
 		rawStore:  jsonlstore.NewJSONLWriter(jsonLogsDir, "logs"),
 		metaStore: metaStore,
-	}, nil
+	}
+	st.recoverCompaction(jsonLogsDir)
+
+	return st, nil
+}
+
+// recoverCompaction removes orphaned .compact.tmp files left by a
+// previous crash during compaction. The original partition is always
+// intact before rename completes, so temp files can be safely deleted.
+//
+// Layout: dk_logs/{YYYY}/{YYYY-MM-DD}_logs.jsonl.compact.tmp
+func (s *Store) recoverCompaction(dir string) {
+	matches, _ := filepath.Glob(filepath.Join(dir, "*", "*.compact.tmp"))
+
+	for _, tmp := range matches {
+		if err := os.Remove(tmp); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove orphaned compaction temp file",
+				slog.String("file", tmp), slog.Any("error", err))
+		} else if err == nil {
+			slog.Info("removed orphaned compaction temp file", slog.String("file", tmp))
+		}
+	}
 }
 
 func (s *Store) Append(ctx context.Context, entry model.Entry) error {
+	relPath := s.rawStore.BuildRelPath(entry.Timestamp)
+	guard, err := s.partitionLock(relPath).SharedLock()
+	if err != nil {
+		return fmt.Errorf("store: partition lock: %w", err)
+	}
+	defer func() { _ = guard.Release() }()
+
 	key, err := s.rawStore.Append(entry)
 	if err != nil {
 		return fmt.Errorf("store: write: %w", err)
@@ -65,6 +94,17 @@ func (s *Store) Append(ctx context.Context, entry model.Entry) error {
 	appmetric.RecordsAppended.Add(1)
 
 	return nil
+}
+
+// partitionLock returns the flock-based lock for the given partition.
+func (s *Store) partitionLock(relPath string) *flock.PartitionLock {
+	lockPath := filepath.Join(s.rawStore.Dir(), relPath+".lock")
+	return flock.NewPartitionLock(lockPath)
+}
+
+// RawStore returns the underlying JSONLWriter, for use by the compactor.
+func (s *Store) RawStore() *jsonlstore.JSONLWriter {
+	return s.rawStore
 }
 
 func (s *Store) Search(ctx context.Context, p model.SearchParams) ([]string, error) {

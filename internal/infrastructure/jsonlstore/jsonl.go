@@ -72,7 +72,7 @@ func (w *JSONLWriter) Append(entry model.Entry) (string, error) {
 	}
 	line = append(line, '\n')
 
-	relPath := w.buildRelPath(entry.Timestamp)
+	relPath := w.BuildRelPath(entry.Timestamp)
 	lfd, err := w.getOrCreate(relPath)
 	if err != nil {
 		return "", err
@@ -196,9 +196,27 @@ func (w *JSONLWriter) Close() error {
 	return errors.Join(errs...)
 }
 
-func (w *JSONLWriter) buildRelPath(ts time.Time) string {
+// BuildRelPath returns the partition-relative path for a given timestamp.
+func (w *JSONLWriter) BuildRelPath(ts time.Time) string {
 	return fmt.Sprintf(
 		"%d/%s_%s.jsonl",
 		ts.Year(), ts.Format("2006-01-02"), w.logType,
 	)
+}
+
+// Dir returns the base directory of the JSONL store.
+func (w *JSONLWriter) Dir() string {
+	return w.dir
+}
+
+// Evict closes and removes the cached file descriptor for the given
+// partition path. The next Append to this partition will reopen the file
+// via getOrCreate. Must be called while holding an exclusive partition lock.
+func (w *JSONLWriter) Evict(relPath string) error {
+	v, ok := w.files.LoadAndDelete(relPath)
+	if !ok {
+		return nil
+	}
+	lfd := v.(*logFD)
+	return lfd.fd.Close()
 }
