@@ -24,7 +24,7 @@ func NewHandler(svc *domainCmd.Service, resolveSrc func(int) string) *Handler {
 }
 
 type AppendInput struct {
-	ClientID string `header:"X-Client-Id" doc:"Client identifier for source tracking"`
+	ClientID string `header:"X-Client-Id" required:"true" doc:"Client identifier for source tracking"`
 	Body     struct {
 		Type      string         `json:"type" doc:"Entry type"`
 		Timestamp time.Time      `json:"timestamp" required:"true" doc:"Event timestamp"`
