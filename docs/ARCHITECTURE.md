@@ -8,19 +8,38 @@ The mutex and locks of data changes is based on flock -- prevents concurrency on
 
 ## CQS
 Logic of service organically divided into command and query.
-- **Command** (`internal/command`): JSONL append + SQLite index update.
-- **Query** (`internal/query`): SQLite narrows to candidate files → JSONL scan + entry-level filtering.
+- **Command** (`internal/domain/command`): state-changing operations, such as JSONL append + SQLite index update.
+- **Query** (`internal/domain/query`): retrieval operations that may reorganize data for response, such as SQLite selecting matching JSONL files → JSONL scan + entry-level filtering.
 
-Currently synchronous. The `command.Storage` interface is compatible with future async indexing.
+Currently synchronous. The command storage boundary is compatible with future async indexing.
 
 ## Layering
 ```
-slog-http middleware        ← RequestID, access logs
-internal/httpapi/*          ← parse, validate, respond
-internal/{command,query}    ← business logic, owns interfaces
-internal/infrastructure     ← Store facade → jsonlstore + SQLiteIndex
+slog-http middleware              ← RequestID, access logs
+internal/httpapi/*                ← parse, validate, respond
+internal/domain/{command,query}   ← business logic, owns interfaces
+internal/infrastructure/*         ← storage, indexing, and external adapters
 ```
 Dependencies flow inward. Interfaces defined at the usage-model-level.
+
+## Handler Segregation
+
+Handlers under `internal/httpapi/` mirror the CQS split so that read and write paths evolve independently — different validation rules, status codes, and future middleware (e.g. rate limiting writes only).
+`httpapi/command` owns mutation concerns; `httpapi/query` owns read concerns; `httpapi/registry` is stateless schema discovery with no domain coupling.
+Shared utilities (`response.go`, `errors.go`, `middleware.go`) are kept at the `httpapi/` root to avoid duplication without blurring the command/query boundary.
+
+## Infrastructure Split
+
+`internal/infrastructure/` contains focused packages rather than one facade:
+Each package maps one technical capability to the domain interfaces that use it.
+
+| Package | Role |
+|---------|------|
+| `commandstore` | Write path: JSONL append + index update |
+| `querystore` | Read path: matching file lookup → JSONL scan |
+| `index` | Finds JSONL files that may contain matching entries |
+| `jsonlstore` | Raw JSONL file I/O |
+| `sourcerepo` | Source-ID ↔ name resolution |
 
 ## Observability
 - RequestID in every JSONL entry + `X-Request-ID` header
@@ -31,6 +50,10 @@ Dependencies flow inward. Interfaces defined at the usage-model-level.
 The API follows the main guidelines of [JSON:API](https://jsonapi.org/) specification.
 Before making API design decisions, consult the spec and its addendums first.
 
+## See Also
+- [Registry Handlers](REGISTRY_HANDLERS.md)
+- [Candidate Compaction](CANDIDATE_COMPACTION.md)
+
 ## Trade-offs
 
 | Decision | Revisit when |
@@ -39,4 +62,3 @@ Before making API design decisions, consult the spec and its addendums first.
 | expvar metrics | Need Prometheus/OTel |
 | No auth | Exposed to untrusted network |
 | File-level index (not per-entry) | Need sub-file granularity |
-| Concrete types in handlers | Adding handler-level tests |
