@@ -8,7 +8,8 @@ import (
 
 	"slices"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
 )
 
 // SearchEntries is the single Query operation.
@@ -17,7 +18,7 @@ import (
 func (s *Service) SearchEntries(
 	ctx context.Context,
 	p model.SearchParams,
-) ([]model.Entry, error) {
+) ([]core.Entry, error) {
 	keys, err := s.metaStorage.Search(ctx, p)
 	if err != nil {
 		return nil, fmt.Errorf("query: meta search: %w", err)
@@ -31,7 +32,8 @@ func (s *Service) SearchEntries(
 	results := filterEntries(entries, p)
 
 	s.log.InfoContext(ctx, "search completed",
-		slog.String("tag", p.Tag),
+		slog.Any("tags", p.Tags),
+		slog.Any("types", p.Types),
 		slog.Int("files", len(keys)),
 		slog.Int("raw_entries", len(entries)),
 		slog.Int("count", len(results)),
@@ -41,7 +43,7 @@ func (s *Service) SearchEntries(
 	return results, nil
 }
 
-func filterEntries(entries []model.Entry, p model.SearchParams) []model.Entry {
+func filterEntries(entries []core.Entry, p model.SearchParams) []core.Entry {
 	limit := p.Limit
 	if limit <= 0 {
 		limit = 100
@@ -50,7 +52,7 @@ func filterEntries(entries []model.Entry, p model.SearchParams) []model.Entry {
 		limit = 1000
 	}
 
-	var result []model.Entry
+	var result []core.Entry
 	for _, e := range entries {
 		if !p.From.IsZero() && e.Timestamp.Before(p.From) {
 			continue
@@ -58,7 +60,14 @@ func filterEntries(entries []model.Entry, p model.SearchParams) []model.Entry {
 		if !p.To.IsZero() && e.Timestamp.After(p.To) {
 			continue
 		}
-		if p.Tag != "" && !slices.Contains(e.Tags, p.Tag) {
+		// OR: entry must contain at least one of the requested tags
+		if len(p.Tags) > 0 && !slices.ContainsFunc(p.Tags, func(t string) bool {
+			return slices.Contains(e.Tags, t)
+		}) {
+			continue
+		}
+		// OR: entry type must be one of the requested types
+		if len(p.Types) > 0 && !slices.Contains(p.Types, e.Type) {
 			continue
 		}
 		result = append(result, e)

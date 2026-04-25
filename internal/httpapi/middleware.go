@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,7 +15,11 @@ import (
 func Recovery(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
-			if v := recover(); v != nil && v != http.ErrAbortHandler {
+			if v := recover(); v != nil {
+				if err, ok := v.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+					return
+				}
+
 				buf := make([]byte, 4096)
 				n := runtime.Stack(buf, false)
 

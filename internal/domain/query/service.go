@@ -4,7 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
 )
 
 type MetaStorage interface {
@@ -12,7 +13,7 @@ type MetaStorage interface {
 }
 
 type Storage interface {
-	Read(ctx context.Context, keys []string) ([]model.Entry, error)
+	Read(ctx context.Context, keys []string) ([]core.Entry, error)
 }
 
 type Service struct {

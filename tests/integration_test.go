@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,13 +17,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command"
+	command "github.com/gitrus/digikeeper-log/internal/domain/command/append"
 	"github.com/gitrus/digikeeper-log/internal/domain/query"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
 	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
-	store "github.com/gitrus/digikeeper-log/internal/infrastructure"
+	store "github.com/gitrus/digikeeper-log/internal/infrastructure/commandstore"
+	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
+	"github.com/gitrus/digikeeper-log/internal/infrastructure/querystore"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/sourcerepo"
 )
 
@@ -65,16 +68,24 @@ type entryMeta struct {
 func setupTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
-	logStore, err := store.NewStore(t.TempDir())
+	dir := t.TempDir()
+
+	idx, err := index.New(filepath.Join(dir, "index.db"))
+	require.NoError(t, err, "init index")
+	t.Cleanup(func() { _ = idx.Close() })
+
+	logStore, err := store.NewStore(dir, idx)
 	require.NoError(t, err, "init store")
 	t.Cleanup(func() { _ = logStore.Close() })
+
+	qryStore := querystore.NewStore(filepath.Join(dir, "dk_logs"), idx)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	srcRepo := sourcerepo.New()
 
 	cmdSvc := command.NewService(logStore, srcRepo, logger)
-	qrySvc := query.NewService(logStore, logStore, logger)
+	qrySvc := query.NewService(qryStore, qryStore, logger)
 
 	cmdHandler := apicmd.NewHandler(cmdSvc, srcRepo.ResolveName)
 	qryHandler := apiqry.NewHandler(qrySvc, srcRepo.ResolveName)
@@ -125,14 +136,46 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
+func newTestRequest(t *testing.T, method, url string, body io.Reader) *http.Request {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), method, url, body)
+	require.NoError(t, err)
+	return req
+}
+
+func doTestRequest(t *testing.T, req *http.Request) *http.Response {
+	t.Helper()
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
+func postJSON(t *testing.T, url, body string) *http.Response {
+	t.Helper()
+	req := newTestRequest(t, http.MethodPost, url, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	return doTestRequest(t, req)
+}
+
+func getURL(t *testing.T, url string) *http.Response {
+	t.Helper()
+	return doTestRequest(t, newTestRequest(t, http.MethodGet, url, nil))
+}
+
+func closeResponseBody(t *testing.T, resp *http.Response) {
+	t.Helper()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("close response body: %v", err)
+	}
+}
+
 func TestPostEntry(t *testing.T) {
 	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
 	// act
-	resp, err := http.Post(srv.URL+"/v1/logs", "application/json", strings.NewReader(body))
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	resp := postJSON(t, srv.URL+"/v1/logs", body)
+	defer closeResponseBody(t, resp)
 
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 	assert.Equal(t, "application/vnd.api+json", resp.Header.Get("Content-Type"))
@@ -160,9 +203,8 @@ func TestPostThenGet(t *testing.T) {
 		`{"type":"note","timestamp":"2026-03-08T14:30:00Z","tags":["fitness","health"],"data":{"exercise":"running"}}`,
 		`{"type":"note","timestamp":"2026-03-08T14:29:00Z","tags":["health"],"data":{"exercise":"pre-running"}}`,
 	} {
-		postResp, err := http.Post(srv.URL+"/v1/logs", "application/json", strings.NewReader(postBody))
-		require.NoError(t, err)
-		defer postResp.Body.Close()
+		postResp := postJSON(t, srv.URL+"/v1/logs", postBody)
+		defer closeResponseBody(t, postResp)
 		require.Equal(t, http.StatusCreated, postResp.StatusCode)
 
 		var postResult singleResponse
@@ -170,9 +212,8 @@ func TestPostThenGet(t *testing.T) {
 	}
 
 	// act GET
-	getResp, err := http.Get(srv.URL + "/v1/logs?tag=fitness")
-	require.NoError(t, err)
-	defer getResp.Body.Close()
+	getResp := getURL(t, srv.URL+"/v1/logs?tag=fitness")
+	defer closeResponseBody(t, getResp)
 
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 	assert.Equal(t, "application/vnd.api+json", getResp.Header.Get("Content-Type"))
@@ -211,16 +252,14 @@ func TestAppendWithClientID(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodPost, srv.URL+"/v1/logs", strings.NewReader(body))
-			require.NoError(t, err)
+			req := newTestRequest(t, http.MethodPost, srv.URL+"/v1/logs", strings.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
 			if tc.clientID != "" {
 				req.Header.Set("X-Client-Id", tc.clientID)
 			}
 
-			resp, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
+			resp := doTestRequest(t, req)
+			defer closeResponseBody(t, resp)
 
 			require.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -235,14 +274,12 @@ func TestAppendPassesRequestID(t *testing.T) {
 	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/v1/logs", strings.NewReader(body))
-	require.NoError(t, err)
+	req := newTestRequest(t, http.MethodPost, srv.URL+"/v1/logs", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Request-ID", "test-req-123")
 
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	resp := doTestRequest(t, req)
+	defer closeResponseBody(t, resp)
 
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -255,9 +292,8 @@ func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
 	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
-	resp, err := http.Post(srv.URL+"/v1/logs", "application/json", strings.NewReader(body))
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	resp := postJSON(t, srv.URL+"/v1/logs", body)
+	defer closeResponseBody(t, resp)
 
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -269,9 +305,8 @@ func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
 func TestRegistryListSchemas(t *testing.T) {
 	srv := setupTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/v1/registry")
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	resp := getURL(t, srv.URL+"/v1/registry")
+	defer closeResponseBody(t, resp)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -289,9 +324,8 @@ func TestRegistryListSchemas(t *testing.T) {
 func TestRegistryGetSchema(t *testing.T) {
 	srv := setupTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/v1/registry/note")
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	resp := getURL(t, srv.URL+"/v1/registry/note")
+	defer closeResponseBody(t, resp)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

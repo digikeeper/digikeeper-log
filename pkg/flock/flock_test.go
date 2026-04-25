@@ -42,7 +42,7 @@ func TestAcquire(t *testing.T) {
 
 		_, err = Acquire(path)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "another server is already running")
+		assert.ErrorIs(t, err, ErrLocked)
 	})
 
 	t.Run("reacquire after release", func(t *testing.T) {

@@ -1,9 +1,9 @@
-package httpapi
+package query
 
 import (
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/model"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
 type EntryResource struct {
@@ -17,19 +17,21 @@ type EntryResourceMeta struct {
 }
 
 type EntryResourceAttrs struct {
-	Type      string            `json:"type"`
-	Meta      EntryResourceMeta `json:"meta"`
-	RequestID string            `json:"request_id"`
-	CreatedAt time.Time         `json:"created_at"`
-	Timestamp time.Time         `json:"timestamp"`
-	Tags      []string          `json:"tags"`
-	Data      map[string]any    `json:"data"`
+	RequestID string    `json:"request_id"`
+	CreatedAt time.Time `json:"created_at"`
+	Timestamp time.Time `json:"timestamp"`
+
+	Meta EntryResourceMeta `json:"meta"`
+
+	Type string         `json:"type"`
+	Tags []string       `json:"tags"`
+	Data map[string]any `json:"data"`
 }
 
 func (r EntryResource) GetID() string      { return r.id }
 func (r EntryResource) GetAttributes() any { return r.attrs }
 
-func NewEntryResource(e model.Entry, resolve func(int) string) EntryResource {
+func NewEntryResource(e core.Entry, resolve func(int) string) EntryResource {
 	return EntryResource{
 		id: e.ID,
 		attrs: EntryResourceAttrs{
