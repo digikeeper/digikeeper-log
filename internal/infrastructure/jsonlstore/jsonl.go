@@ -9,12 +9,11 @@ import (
 	"sync"
 	"time"
 
-	json "encoding/json/v2"
-
 	"github.com/tidwall/gjson"
 
 	"github.com/gitrus/digikeeper-log/internal/domain/core"
 	"github.com/gitrus/digikeeper-log/internal/domain/errs"
+	"github.com/gitrus/digikeeper-log/internal/jsonx"
 )
 
 const maxEntrySizeBytes = 10 * 1024 * 1024 // 10 MiB
@@ -66,7 +65,7 @@ func NewJSONLWriter(dir, logType string) *JSONLWriter {
 }
 
 func (w *JSONLWriter) Append(entry core.Entry) (string, error) {
-	line, err := json.Marshal(entry)
+	line, err := jsonx.Marshal(entry)
 	if err != nil {
 		return "", fmt.Errorf("jsonl: marshal: %w, %w", err, errs.ErrStorageCommon)
 	}
@@ -144,7 +143,7 @@ func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]core.Entry, er
 			continue
 		}
 		var e core.Entry
-		if err := json.Unmarshal(line, &e); err != nil {
+		if err := jsonx.Unmarshal(line, &e); err != nil {
 			return nil, fmt.Errorf("jsonl: unmarshal in %s: %w", relPath, err)
 		}
 		entries = append(entries, e)
@@ -209,7 +208,7 @@ func (w *JSONLWriter) ReplaceFile(relPath string, entries []core.Entry) error {
 	}
 
 	for _, entry := range entries {
-		line, err := json.Marshal(entry)
+		line, err := jsonx.Marshal(entry)
 		if err != nil {
 			_ = f.Close()
 			_ = os.Remove(tmpPath)

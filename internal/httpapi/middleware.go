@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"encoding/json/v2"
+	"github.com/gitrus/digikeeper-log/internal/jsonx"
 )
 
 // Recovery returns middleware that catches panics, logs them with slog,
@@ -32,7 +32,7 @@ func Recovery(next http.Handler) http.Handler {
 
 				w.Header().Set("Content-Type", ContentType)
 				w.WriteHeader(http.StatusInternalServerError)
-				_ = json.MarshalWrite(w, struct {
+				_ = jsonx.MarshalWrite(w, struct {
 					Errors []ErrorDetail `json:"errors"`
 				}{
 					Errors: []ErrorDetail{{

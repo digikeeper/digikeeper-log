@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"encoding/json/v2"
+	"github.com/gitrus/digikeeper-log/internal/jsonx"
 )
 
 //go:embed sources.json
@@ -23,7 +23,7 @@ type Repo struct {
 
 func New() *Repo {
 	var raw map[string]int
-	if err := json.Unmarshal(sourcesRaw, &raw); err != nil {
+	if err := jsonx.Unmarshal(sourcesRaw, &raw); err != nil {
 		panic(fmt.Sprintf("sourcerepo: unmarshal sources.json: %v", err))
 	}
 	byName := make(map[string]source, len(raw))

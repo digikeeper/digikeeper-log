@@ -84,63 +84,35 @@ func TestStoreSearch(t *testing.T) {
 func TestStoreInsertMergesFileMetadata(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name      string
-		rows      []Row
-		params    SearchParams
-		want      Result
-		wantTags  []string
-		wantTypes []string
-	}{
+	store := newTestStore(t)
+	for _, row := range []Row{
 		{
-			name: "same file merges tags types and time range",
-			rows: []Row{
-				{
-					File:      "dk_logs/2026/2026-03-08_logs.jsonl",
-					Tags:      []string{"work"},
-					Types:     []string{"note"},
-					Timestamp: mustParseTime(t, "2026-03-08T10:00:00Z"),
-				},
-				{
-					File:      "dk_logs/2026/2026-03-08_logs.jsonl",
-					Tags:      []string{"fitness"},
-					Types:     []string{"exercise"},
-					Timestamp: mustParseTime(t, "2026-03-08T14:00:00Z"),
-				},
-			},
-			params: SearchParams{
-				Tags:  []string{"fitness"},
-				Types: []string{"exercise"},
-			},
-			want: Result{
-				File:  "dk_logs/2026/2026-03-08_logs.jsonl",
-				MinTS: mustParseTime(t, "2026-03-08T10:00:00Z"),
-				MaxTS: mustParseTime(t, "2026-03-08T14:00:00Z"),
-			},
-			wantTags:  []string{"work", "fitness"},
-			wantTypes: []string{"note", "exercise"},
+			File:      "dk_logs/2026/2026-03-08_logs.jsonl",
+			Tags:      []string{"work"},
+			Types:     []string{"note"},
+			Timestamp: mustParseTime(t, "2026-03-08T10:00:00Z"),
 		},
+		{
+			File:      "dk_logs/2026/2026-03-08_logs.jsonl",
+			Tags:      []string{"fitness"},
+			Types:     []string{"exercise"},
+			Timestamp: mustParseTime(t, "2026-03-08T14:00:00Z"),
+		},
+	} {
+		mustInsertIndexRow(t, store, row)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			store := newTestStore(t)
-			for _, row := range tt.rows {
-				mustInsertIndexRow(t, store, row)
-			}
-
-			results, err := store.Search(t.Context(), tt.params)
-			require.NoError(t, err)
-			require.Len(t, results, 1)
-			assert.Equal(t, tt.want.File, results[0].File)
-			assert.Equal(t, tt.want.MinTS, results[0].MinTS)
-			assert.Equal(t, tt.want.MaxTS, results[0].MaxTS)
-			assert.ElementsMatch(t, tt.wantTags, results[0].Tags)
-			assert.ElementsMatch(t, tt.wantTypes, results[0].Types)
-		})
-	}
+	results, err := store.Search(t.Context(), SearchParams{
+		Tags:  []string{"fitness"},
+		Types: []string{"exercise"},
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "dk_logs/2026/2026-03-08_logs.jsonl", results[0].File)
+	assert.Equal(t, mustParseTime(t, "2026-03-08T10:00:00Z"), results[0].MinTS)
+	assert.Equal(t, mustParseTime(t, "2026-03-08T14:00:00Z"), results[0].MaxTS)
+	assert.ElementsMatch(t, []string{"work", "fitness"}, results[0].Tags)
+	assert.ElementsMatch(t, []string{"note", "exercise"}, results[0].Types)
 }
 
 func newTestStore(t *testing.T) *Store {

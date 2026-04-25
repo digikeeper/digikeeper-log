@@ -2,7 +2,6 @@ package flock
 
 import (
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,28 +32,14 @@ func TestRWLock_ExclusiveBlocksShared(t *testing.T) {
 	exGuard, err := l.ExclusiveLock()
 	require.NoError(t, err)
 
-	done := make(chan struct{})
-	go func() {
-		g, err := l.SharedLock()
-		assert.NoError(t, err)
-		_ = g.Release()
-		close(done)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	select {
-	case <-done:
-		t.Fatal("shared lock should have blocked while exclusive is held")
-	default:
-	}
+	started, done := startLockAttempt(l.SharedLock)
+	requireLockAttemptStarted(t, started)
+	assertLockStillWaiting(t, done)
 
 	require.NoError(t, exGuard.Release())
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("shared lock did not unblock after exclusive release")
-	}
+	g := requireLockDone(t, done)
+	assert.NoError(t, g.Release())
 }
 
 func TestRWLock_SharedBlocksExclusive(t *testing.T) {
@@ -65,28 +50,14 @@ func TestRWLock_SharedBlocksExclusive(t *testing.T) {
 	shGuard, err := l.SharedLock()
 	require.NoError(t, err)
 
-	done := make(chan struct{})
-	go func() {
-		g, err := l.ExclusiveLock()
-		assert.NoError(t, err)
-		_ = g.Release()
-		close(done)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	select {
-	case <-done:
-		t.Fatal("exclusive lock should have blocked while shared is held")
-	default:
-	}
+	started, done := startLockAttempt(l.ExclusiveLock)
+	requireLockAttemptStarted(t, started)
+	assertLockStillWaiting(t, done)
 
 	require.NoError(t, shGuard.Release())
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("exclusive lock did not unblock after shared release")
-	}
+	g := requireLockDone(t, done)
+	assert.NoError(t, g.Release())
 }
 
 func TestRWLock_TryExclusiveLock_Fails(t *testing.T) {
@@ -118,18 +89,22 @@ func TestRWLock_ConcurrentAppendSimulation(t *testing.T) {
 	l := NewRWLock(path)
 
 	const n = 20
-	var wg sync.WaitGroup
-	wg.Add(n)
+	errs := make(chan error, n)
 	for range n {
 		go func() {
-			defer wg.Done()
 			g, err := l.SharedLock()
-			assert.NoError(t, err)
+			if err != nil {
+				errs <- err
+				return
+			}
 			time.Sleep(10 * time.Millisecond)
-			assert.NoError(t, g.Release())
+			errs <- g.Release()
 		}()
 	}
-	wg.Wait()
+
+	for range n {
+		require.NoError(t, <-errs)
+	}
 }
 
 func TestRWLock_ExclusiveBlocksMultipleShared(t *testing.T) {
@@ -141,26 +116,25 @@ func TestRWLock_ExclusiveBlocksMultipleShared(t *testing.T) {
 	require.NoError(t, err)
 
 	const n = 5
-	blocked := make(chan int, n)
-	for i := range n {
-		go func(id int) {
-			g, _ := l.SharedLock()
-			blocked <- id
-			_ = g.Release()
-		}(i)
+	type lockAttempt struct {
+		started <-chan struct{}
+		done    <-chan error
+	}
+	attempts := make([]lockAttempt, 0, n)
+	for range n {
+		started, done := startSharedLockAndRelease(l)
+		attempts = append(attempts, lockAttempt{started: started, done: done})
 	}
 
-	time.Sleep(50 * time.Millisecond)
-	assert.Empty(t, blocked, "no shared locks should have succeeded")
+	for _, attempt := range attempts {
+		requireLockAttemptStarted(t, attempt.started)
+		assertLockReleaseStillWaiting(t, attempt.done)
+	}
 
 	require.NoError(t, exGuard.Release())
 
-	for range n {
-		select {
-		case <-blocked:
-		case <-time.After(2 * time.Second):
-			t.Fatal("not all shared locks unblocked after exclusive release")
-		}
+	for _, attempt := range attempts {
+		requireLockReleaseDone(t, attempt.done)
 	}
 }
 
@@ -180,4 +154,97 @@ func TestGuard_NilRelease(t *testing.T) {
 	t.Parallel()
 	var g *Guard
 	assert.NoError(t, g.Release())
+}
+
+type lockAttemptResult struct {
+	guard *Guard
+	err   error
+}
+
+func startLockAttempt(acquire func() (*Guard, error)) (<-chan struct{}, <-chan lockAttemptResult) {
+	started := make(chan struct{})
+	done := make(chan lockAttemptResult, 1)
+
+	go func() {
+		close(started)
+		g, err := acquire()
+		done <- lockAttemptResult{guard: g, err: err}
+	}()
+
+	return started, done
+}
+
+func startSharedLockAndRelease(l *RWLock) (<-chan struct{}, <-chan error) {
+	started := make(chan struct{})
+	done := make(chan error, 1)
+
+	go func() {
+		close(started)
+		g, err := l.SharedLock()
+		if err != nil {
+			done <- err
+			return
+		}
+		done <- g.Release()
+	}()
+
+	return started, done
+}
+
+func requireLockAttemptStarted(t *testing.T, started <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("lock attempt did not start")
+	}
+}
+
+func assertLockStillWaiting(t *testing.T, done <-chan lockAttemptResult) {
+	t.Helper()
+
+	select {
+	case result := <-done:
+		if result.guard != nil {
+			_ = result.guard.Release()
+		}
+		t.Fatalf("lock attempt completed before blocker was released: %v", result.err)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func assertLockReleaseStillWaiting(t *testing.T, done <-chan error) {
+	t.Helper()
+
+	select {
+	case err := <-done:
+		t.Fatalf("lock attempt completed before blocker was released: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func requireLockReleaseDone(t *testing.T, done <-chan error) {
+	t.Helper()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("lock attempt did not complete")
+	}
+}
+
+func requireLockDone(t *testing.T, done <-chan lockAttemptResult) *Guard {
+	t.Helper()
+
+	select {
+	case result := <-done:
+		require.NoError(t, result.err)
+		require.NotNil(t, result.guard)
+		return result.guard
+	case <-time.After(2 * time.Second):
+		t.Fatal("lock attempt did not complete")
+		return nil
+	}
 }

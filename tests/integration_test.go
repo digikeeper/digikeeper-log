@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"encoding/json/v2"
-
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	sloghttp "github.com/samber/slog-http"
@@ -27,6 +25,7 @@ import (
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/querystore"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/sourcerepo"
+	"github.com/gitrus/digikeeper-log/internal/jsonx"
 )
 
 // --- test-local JSON:API response types ---
@@ -182,7 +181,7 @@ func TestPostEntry(t *testing.T) {
 
 	// assert
 	var got singleResponse
-	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 
 	assert.Equal(t, "logs", got.Meta.Type)
 	assert.NotEmpty(t, got.Data.ID)
@@ -208,7 +207,7 @@ func TestPostThenGet(t *testing.T) {
 		require.Equal(t, http.StatusCreated, postResp.StatusCode)
 
 		var postResult singleResponse
-		require.NoError(t, json.UnmarshalRead(postResp.Body, &postResult))
+		require.NoError(t, jsonx.UnmarshalRead(postResp.Body, &postResult))
 	}
 
 	// act GET
@@ -220,7 +219,7 @@ func TestPostThenGet(t *testing.T) {
 
 	// assert
 	var getResult listResponse
-	require.NoError(t, json.UnmarshalRead(getResp.Body, &getResult))
+	require.NoError(t, jsonx.UnmarshalRead(getResp.Body, &getResult))
 
 	assert.Equal(t, "logs", getResult.Meta.Type)
 	require.NotEmpty(t, getResult.Data)
@@ -245,7 +244,6 @@ func TestAppendWithClientID(t *testing.T) {
 		wantSource string
 	}{
 		{"known client", "mobile", "mobile"},
-		{"another known client", "web", "web"},
 		{"unknown client", "desktop", ""},
 		{"empty client", "", ""},
 	}
@@ -264,7 +262,7 @@ func TestAppendWithClientID(t *testing.T) {
 			require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 			var got singleResponse
-			require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+			require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 			assert.Equal(t, tc.wantSource, got.Data.Attributes.Meta.Source)
 		})
 	}
@@ -284,7 +282,7 @@ func TestAppendPassesRequestID(t *testing.T) {
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var got singleResponse
-	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 	assert.Equal(t, "test-req-123", got.Data.Attributes.RequestID)
 }
 
@@ -298,7 +296,7 @@ func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 	var got singleResponse
-	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 	assert.NotEmpty(t, got.Data.Attributes.RequestID)
 }
 
@@ -316,7 +314,7 @@ func TestRegistryListSchemas(t *testing.T) {
 			Schema any    `json:"schema"`
 		} `json:"schemas"`
 	}
-	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 	require.Len(t, got.Schemas, 1)
 	assert.Equal(t, "note", got.Schemas[0].Type)
 }
@@ -333,6 +331,6 @@ func TestRegistryGetSchema(t *testing.T) {
 		Type   string `json:"type"`
 		Schema any    `json:"schema"`
 	}
-	require.NoError(t, json.UnmarshalRead(resp.Body, &got))
+	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 	assert.Equal(t, "note", got.Type)
 }

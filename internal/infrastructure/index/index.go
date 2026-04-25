@@ -8,11 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"encoding/json/v2"
-
 	_ "modernc.org/sqlite" // register "sqlite" driver
 
 	"github.com/gitrus/digikeeper-log/internal/domain/appmetric"
+	"github.com/gitrus/digikeeper-log/internal/jsonx"
 )
 
 // SearchParams filters a [Store.Search] query.
@@ -94,19 +93,19 @@ func (s *Store) Insert(ctx context.Context, row Row) error {
 	case err != nil:
 		return fmt.Errorf("sqlite: select: %w", err)
 	default:
-		if err := json.Unmarshal([]byte(rawTags), &existingTags); err != nil {
+		if err := jsonx.Unmarshal([]byte(rawTags), &existingTags); err != nil {
 			return fmt.Errorf("sqlite: unmarshal tags: %w", err)
 		}
-		if err := json.Unmarshal([]byte(rawTypes), &existingTypes); err != nil {
+		if err := jsonx.Unmarshal([]byte(rawTypes), &existingTypes); err != nil {
 			return fmt.Errorf("sqlite: unmarshal types: %w", err)
 		}
 	}
 
-	tagsJSON, err := json.Marshal(mergeStrings(existingTags, row.Tags))
+	tagsJSON, err := jsonx.Marshal(mergeStrings(existingTags, row.Tags))
 	if err != nil {
 		return fmt.Errorf("sqlite: marshal tags: %w", err)
 	}
-	typesJSON, err := json.Marshal(mergeStrings(existingTypes, row.Types))
+	typesJSON, err := jsonx.Marshal(mergeStrings(existingTypes, row.Types))
 	if err != nil {
 		return fmt.Errorf("sqlite: marshal types: %w", err)
 	}
@@ -200,10 +199,10 @@ func (s *Store) Search(ctx context.Context, p SearchParams) ([]Result, error) {
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: parse max_ts %q: %w", maxTS, err)
 		}
-		if err := json.Unmarshal([]byte(tagsRaw), &r.Tags); err != nil {
+		if err := jsonx.Unmarshal([]byte(tagsRaw), &r.Tags); err != nil {
 			return nil, fmt.Errorf("sqlite: unmarshal tags: %w", err)
 		}
-		if err := json.Unmarshal([]byte(typesRaw), &r.Types); err != nil {
+		if err := jsonx.Unmarshal([]byte(typesRaw), &r.Types); err != nil {
 			return nil, fmt.Errorf("sqlite: unmarshal types: %w", err)
 		}
 		results = append(results, r)

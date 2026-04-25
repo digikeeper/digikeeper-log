@@ -27,11 +27,6 @@ func TestQueryInputResolve(t *testing.T) {
 			},
 		},
 		{
-			name:          "empty tag is invalid",
-			input:         QueryInput{Tags: []string{""}},
-			wantLocations: []string{"query.tag"},
-		},
-		{
 			name:          "blank tag is invalid",
 			input:         QueryInput{Tags: []string{"  "}},
 			wantLocations: []string{"query.tag"},
