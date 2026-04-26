@@ -13,6 +13,16 @@ Logic of service organically divided into command and query.
 
 Currently synchronous. The command storage boundary is compatible with future async indexing.
 
+CQS is not a packaging rule; it is a semantic discipline for separating asking from changing.
+
+The real boundary is not GET versus POST, but read view versus write decision.
+
+A query layer should represent what a caller needs to observe; a command layer should own the consistency rules needed to safely change state.
+
+When a "get" participates in command consistency — locks, versions, transactions, invariant checks, idempotency, or state-transition decisions — it is part of the write model, even if it reads.
+
+Separate query/read models only when they change for different reasons than the command model; otherwise the split becomes ceremonial duplication and increases coupling instead of reducing it.
+
 ## Layering
 ```
 slog-http middleware              ← RequestID, access logs
