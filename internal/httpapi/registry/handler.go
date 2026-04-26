@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/danielgtaylor/huma/v2"
 )
 
 //go:embed schemas/*.json
@@ -73,7 +75,7 @@ type GetOutput struct {
 func (h *Handler) GetSchema(_ context.Context, input *GetInput) (*GetOutput, error) {
 	raw, ok := h.schemas[input.Type]
 	if !ok {
-		return nil, nil
+		return nil, huma.Error404NotFound("schema type not found: " + input.Type)
 	}
 
 	out := &GetOutput{}
