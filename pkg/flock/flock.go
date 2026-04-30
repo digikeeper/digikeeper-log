@@ -97,6 +97,12 @@ func (l *RWLock) SharedLock() (*Guard, error) {
 	return l.acquire(syscall.LOCK_SH)
 }
 
+// TrySharedLock attempts a non-blocking shared lock.
+// Returns (nil, ErrLocked) if an exclusive lock is already held.
+func (l *RWLock) TrySharedLock() (*Guard, error) {
+	return l.acquire(syscall.LOCK_SH | syscall.LOCK_NB)
+}
+
 // ExclusiveLock acquires an exclusive (LOCK_EX) flock, blocking until
 // all existing shared and exclusive holders release.
 func (l *RWLock) ExclusiveLock() (*Guard, error) {

@@ -3,6 +3,7 @@ package command
 import (
 	"time"
 
+	commandmodel "github.com/gitrus/digikeeper-log/internal/domain/command/model"
 	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
@@ -45,6 +46,45 @@ func NewEntryResource(e core.Entry, resolve func(int) string) EntryResource {
 			Timestamp: e.Timestamp,
 			Tags:      e.Tags,
 			Data:      e.Data,
+		},
+	}
+}
+
+type CandidateResource struct {
+	id    string
+	attrs CandidateResourceAttrs
+}
+
+type CandidateResourceAttrs struct {
+	EntryID           string                   `json:"entry_id"`
+	OriginalTimestamp time.Time                `json:"original_timestamp"`
+	Entry             core.Entry               `json:"entry"`
+	CreatedAt         time.Time                `json:"created_at"`
+	Action            core.CandidateResolution `json:"action,omitempty"`
+	Reason            string                   `json:"reason,omitempty"`
+	ClientID          string                   `json:"client_id,omitempty"`
+
+	ResolvedBy string    `json:"resolved_by,omitempty"`
+	ResolvedAt time.Time `json:"resolved_at,omitzero"`
+}
+
+func (r CandidateResource) GetID() string      { return r.id }
+func (r CandidateResource) GetAttributes() any { return r.attrs }
+
+func NewCandidateResource(c commandmodel.Candidate) CandidateResource {
+	return CandidateResource{
+		id: c.ID,
+		attrs: CandidateResourceAttrs{
+			EntryID:           c.EntryID,
+			OriginalTimestamp: c.OriginalTimestamp,
+			Entry:             c.Entry,
+			CreatedAt:         c.CreatedAt,
+			Action:            c.Action,
+			Reason:            c.Reason,
+			ClientID:          c.ClientID,
+
+			ResolvedBy: c.ResolvedBy,
+			ResolvedAt: c.ResolvedAt,
 		},
 	}
 }

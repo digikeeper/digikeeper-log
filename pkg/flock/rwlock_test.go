@@ -73,6 +73,19 @@ func TestRWLock_TryExclusiveLock_Fails(t *testing.T) {
 	assert.ErrorIs(t, err, ErrLocked)
 }
 
+func TestRWLock_TrySharedLock_FailsWhenExclusiveHeld(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "test.lock")
+	l := NewRWLock(path)
+
+	g, err := l.ExclusiveLock()
+	require.NoError(t, err)
+	defer func() { _ = g.Release() }()
+
+	_, err = l.TrySharedLock()
+	assert.ErrorIs(t, err, ErrLocked)
+}
+
 func TestRWLock_TryExclusiveLock_Succeeds(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "test.lock")

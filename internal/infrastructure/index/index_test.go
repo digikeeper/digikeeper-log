@@ -7,6 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/gitrus/digikeeper-log/pkg/timefmt"
 )
 
 func TestStoreSearch(t *testing.T) {
@@ -115,10 +118,65 @@ func TestStoreInsertMergesFileMetadata(t *testing.T) {
 	assert.ElementsMatch(t, []string{"note", "exercise"}, results[0].Types)
 }
 
+func TestStoreRebuildPartition(t *testing.T) {
+	t.Parallel()
+
+	store := newTestStore(t)
+	partition := core.PartitionFromTime(mustParseTime(t, "2026-03-08T10:00:00Z"))
+	require.NoError(t, store.Insert(t.Context(), Row{
+		File:      "2026/2026-03-08_logs.jsonl",
+		Tags:      []string{"old"},
+		Types:     []string{"note"},
+		Timestamp: mustParseTime(t, "2026-03-08T09:00:00Z"),
+	}))
+
+	err := store.RebuildPartition(t.Context(), partition, []core.Entry{
+		{
+			Timestamp: mustParseTime(t, "2026-03-08T10:00:00.123456789Z"),
+			Type:      "note",
+			Tags:      []string{"work"},
+		},
+		{
+			Timestamp: mustParseTime(t, "2026-03-08T14:00:00.987654321Z"),
+			Type:      "meal",
+			Tags:      []string{"health"},
+		},
+	})
+	require.NoError(t, err)
+
+	results, err := store.Search(t.Context(), SearchParams{Tags: []string{"work"}})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "2026/2026-03-08_logs.jsonl", results[0].File)
+	assert.ElementsMatch(t, []string{"work", "health"}, results[0].Tags)
+	assert.ElementsMatch(t, []string{"note", "meal"}, results[0].Types)
+	assert.Equal(t, mustParseTime(t, "2026-03-08T10:00:00.123Z"), results[0].MinTS)
+	assert.Equal(t, mustParseTime(t, "2026-03-08T14:00:00.987Z"), results[0].MaxTS)
+}
+
+func TestStoreRebuildPartitionEmptyDeletesRow(t *testing.T) {
+	t.Parallel()
+
+	store := newTestStore(t)
+	partition := core.PartitionFromTime(mustParseTime(t, "2026-03-08T10:00:00Z"))
+	require.NoError(t, store.Insert(t.Context(), Row{
+		File:      "2026/2026-03-08_logs.jsonl",
+		Tags:      []string{"work"},
+		Types:     []string{"note"},
+		Timestamp: mustParseTime(t, "2026-03-08T10:00:00Z"),
+	}))
+
+	require.NoError(t, store.RebuildPartition(t.Context(), partition, nil))
+
+	results, err := store.Search(t.Context(), SearchParams{Tags: []string{"work"}})
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 
-	store, err := New(filepath.Join(t.TempDir(), "index.db"))
+	store, err := New(filepath.Join(t.TempDir(), "index.db"), Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = store.Close() })
 	return store
@@ -133,7 +191,7 @@ func mustInsertIndexRow(t *testing.T, store *Store, row Row) {
 func mustParseTime(t *testing.T, value string) time.Time {
 	t.Helper()
 
-	ts, err := time.Parse(time.RFC3339, value)
+	ts, err := timefmt.Parse(value)
 	require.NoError(t, err)
 	return ts
 }

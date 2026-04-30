@@ -23,9 +23,15 @@ type LogStorageConfig struct {
 	Path string `env:"PATH" env-required:"true"`
 }
 
+type SQLiteConfig struct {
+	JournalMode string        `env:"JOURNAL_MODE" env-default:"WAL"`
+	BusyTimeout time.Duration `env:"BUSY_TIMEOUT" env-default:"5s"`
+}
+
 type Config struct {
 	Common     CommonConfig     `yaml:"common"`
 	LogStorage LogStorageConfig `yaml:"log_storage" env-prefix:"LOG_STORAGE_"`
+	SQLite     SQLiteConfig     `yaml:"sqlite" env-prefix:"SQLITE_"`
 	API        APIConfig        `yaml:"api" env-prefix:"API_"`
 }
 

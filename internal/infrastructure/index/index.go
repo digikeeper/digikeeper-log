@@ -11,7 +11,10 @@ import (
 	_ "modernc.org/sqlite" // register "sqlite" driver
 
 	"github.com/gitrus/digikeeper-log/internal/domain/appmetric"
+	"github.com/gitrus/digikeeper-log/internal/domain/core"
 	"github.com/gitrus/digikeeper-log/internal/jsonx"
+	"github.com/gitrus/digikeeper-log/pkg/sqlitedsn"
+	"github.com/gitrus/digikeeper-log/pkg/timefmt"
 )
 
 // SearchParams filters a [Store.Search] query.
@@ -23,6 +26,11 @@ type SearchParams struct {
 	To    time.Time
 }
 
+type Config struct {
+	JournalMode string
+	BusyTimeout time.Duration
+}
+
 // Store is a file-level metadata index over JSONL files backed by SQLite.
 // Each row represents one JSONL file with aggregated tags, types, and time range.
 type Store struct {
@@ -30,8 +38,8 @@ type Store struct {
 }
 
 // New opens (or creates) a SQLite database at path and runs migrations.
-func New(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+func New(path string, cfg Config) (*Store, error) {
+	db, err := sql.Open("sqlite", sqlitedsn.File(path, sqliteDSNOptions(cfg)...))
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: open: %w", err)
 	}
@@ -44,6 +52,20 @@ func New(path string) (*Store, error) {
 		return nil, fmt.Errorf("sqlite: migrate: %w", err)
 	}
 	return s, nil
+}
+
+func sqliteDSNOptions(cfg Config) []sqlitedsn.Option {
+	var opts []sqlitedsn.Option
+	if cfg.JournalMode != "" {
+		opts = append(opts, sqlitedsn.Pragma(sqlitedsn.PragmaJournalMode, cfg.JournalMode))
+	}
+	if cfg.BusyTimeout > 0 {
+		opts = append(opts, sqlitedsn.Pragma(
+			sqlitedsn.PragmaBusyTimeout,
+			int(cfg.BusyTimeout/time.Millisecond),
+		))
+	}
+	return opts
 }
 
 func (s *Store) migrate(ctx context.Context) error {
@@ -73,7 +95,7 @@ func (s *Store) Insert(ctx context.Context, row Row) error {
 	start := time.Now()
 	defer func() { appmetric.RecordIndexLatency(time.Since(start)) }()
 
-	ts := row.Timestamp.UTC().Format(time.RFC3339)
+	ts := timefmt.Format(row.Timestamp)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -149,11 +171,11 @@ func (s *Store) Search(ctx context.Context, p SearchParams) ([]Result, error) {
 
 	if !p.From.IsZero() {
 		where = append(where, "max_ts >= ?")
-		args = append(args, p.From.UTC().Format(time.RFC3339))
+		args = append(args, timefmt.Format(p.From))
 	}
 	if !p.To.IsZero() {
 		where = append(where, "min_ts <= ?")
-		args = append(args, p.To.UTC().Format(time.RFC3339))
+		args = append(args, timefmt.Format(p.To))
 	}
 	if len(p.Tags) > 0 {
 		where = append(where, jsonAnyOf("tags", len(p.Tags)))
@@ -191,11 +213,11 @@ func (s *Store) Search(ctx context.Context, p SearchParams) ([]Result, error) {
 		if err := rows.Scan(&r.File, &tagsRaw, &typesRaw, &minTS, &maxTS); err != nil {
 			return nil, fmt.Errorf("sqlite: scan: %w", err)
 		}
-		r.MinTS, err = time.Parse(time.RFC3339, minTS)
+		r.MinTS, err = timefmt.Parse(minTS)
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: parse min_ts %q: %w", minTS, err)
 		}
-		r.MaxTS, err = time.Parse(time.RFC3339, maxTS)
+		r.MaxTS, err = timefmt.Parse(maxTS)
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: parse max_ts %q: %w", maxTS, err)
 		}
@@ -208,6 +230,58 @@ func (s *Store) Search(ctx context.Context, p SearchParams) ([]Result, error) {
 		results = append(results, r)
 	}
 	return results, rows.Err()
+}
+
+// RebuildPartition replaces the file-level index row for a rewritten partition.
+func (s *Store) RebuildPartition(ctx context.Context, partition core.Partition, entries []core.Entry) error {
+	start := time.Now()
+	defer func() { appmetric.RecordIndexLatency(time.Since(start)) }()
+
+	file := fmt.Sprintf("%d/%s_logs.jsonl", partition.Year(), partition.String())
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("sqlite: begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM file_index WHERE file = ?`, file); err != nil {
+		return fmt.Errorf("sqlite: delete partition index: %w", err)
+	}
+	if len(entries) == 0 {
+		return tx.Commit()
+	}
+
+	var minTS, maxTS time.Time
+	var tags, types []string
+	for i, entry := range entries {
+		if i == 0 || entry.Timestamp.Before(minTS) {
+			minTS = entry.Timestamp
+		}
+		if i == 0 || entry.Timestamp.After(maxTS) {
+			maxTS = entry.Timestamp
+		}
+		tags = append(tags, entry.Tags...)
+		types = append(types, entry.Type)
+	}
+
+	tagsJSON, err := jsonx.Marshal(mergeStrings(nil, tags))
+	if err != nil {
+		return fmt.Errorf("sqlite: marshal tags: %w", err)
+	}
+	typesJSON, err := jsonx.Marshal(mergeStrings(nil, types))
+	if err != nil {
+		return fmt.Errorf("sqlite: marshal types: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO file_index (file, tags, types, min_ts, max_ts)
+		VALUES (?, ?, ?, ?, ?)
+	`, file, string(tagsJSON), string(typesJSON), timefmt.Format(minTS), timefmt.Format(maxTS))
+	if err != nil {
+		return fmt.Errorf("sqlite: insert partition index: %w", err)
+	}
+	return tx.Commit()
 }
 
 // Close closes the underlying database connection pool.

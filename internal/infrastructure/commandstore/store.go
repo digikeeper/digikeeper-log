@@ -76,9 +76,7 @@ func (s *Store) Append(ctx context.Context, entry core.Entry) error {
 	return nil
 }
 
-// recoverCompaction removes orphaned .compact.tmp files left by a
-// previous crash during compaction. The original partition is always
-// intact before rename completes, so temp files can be safely deleted.
+// recoverCompaction removes orphaned .compact.tmp
 //
 // Layout: dk_logs/{YYYY}/{YYYY-MM-DD}_logs.jsonl.compact.tmp
 func (s *Store) recoverCompaction(dir string) {
@@ -94,7 +92,6 @@ func (s *Store) recoverCompaction(dir string) {
 	}
 }
 
-// partitionLock returns the flock-based lock for the given partition.
 func (s *Store) partitionLock(relPath string) *flock.RWLock {
 	lockPath := filepath.Join(s.rawStore.Dir(), relPath+".lock")
 	return flock.NewRWLock(lockPath)
@@ -108,6 +105,23 @@ func (s *Store) ReadPartition(_ context.Context, p core.Partition) ([]core.Entry
 		return nil, fmt.Errorf("store: read partition %s: %w", p, err)
 	}
 	return entries, nil
+}
+
+// ReadEntry scans one partition for the requested entry. Satisfies candidate.LogStorage.
+func (s *Store) ReadEntry(ctx context.Context, entryID string, p core.Partition) (core.Entry, error) {
+	entries, err := s.ReadPartition(ctx, p)
+	if err != nil {
+		return core.Entry{}, err
+	}
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return core.Entry{}, err
+		}
+		if entry.ID == entryID {
+			return entry, nil
+		}
+	}
+	return core.Entry{}, fmt.Errorf("store: entry %s partition %s: %w", entryID, p, errs.ErrEntryNotFound)
 }
 
 // ReplacePartition atomically rewrites the partition with entries. Satisfies compaction.LogStorage.
