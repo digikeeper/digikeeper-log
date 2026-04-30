@@ -19,7 +19,7 @@ import (
 //  5. Atomic rewrite (write-temp → fsync → rename via renameio).
 //  6. Delete compacted candidates from applied/.
 //  7. Rebuild index for the rewritten partition.
-//  8. Append event to journal.
+//  8. Append event to candidate audit.
 //
 // Steps 6–8 are best-effort. If they fail, next compaction sees the same
 // applied candidates and re-applies them (idempotent: same full-copy by ID).
@@ -36,13 +36,13 @@ func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 	}
 
 	// 2. Acquire exclusive locks on entry and candidate partitions.
-	releaseEntry, err := s.locker.ExclusiveLock(ctx, req.Partition)
+	releaseEntry, err := s.logs.ExclusiveLock(ctx, req.Partition)
 	if err != nil {
 		return fmt.Errorf("compact: lock entry partition %s: %w", req.Partition, err)
 	}
 	defer releaseEntry()
 
-	releaseCandidate, err := s.candidateLocker.ExclusiveLock(ctx, req.Partition)
+	releaseCandidate, err := s.candidates.ExclusiveLock(ctx, req.Partition)
 	if err != nil {
 		return fmt.Errorf("compact: lock candidate partition %s: %w", req.Partition, err)
 	}
@@ -80,14 +80,14 @@ func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 			slog.Any("error", err))
 	}
 
-	// 8. Journal (best-effort).
-	event := JournalEvent{
+	// 8. Candidate audit (best-effort).
+	event := CandidateAuditEvent{
 		Partition:    req.Partition,
 		AppliedCount: appliedCount,
 		CompletedAt:  time.Now().UTC(),
 	}
-	if err := s.journal.AppendJournal(ctx, event); err != nil {
-		s.logger.ErrorContext(ctx, "journal append failed",
+	if err := s.candidates.AuditAppend(ctx, event); err != nil {
+		s.logger.ErrorContext(ctx, "candidate audit append failed",
 			slog.String("partition", req.Partition.String()),
 			slog.Any("error", err))
 	}

@@ -20,7 +20,7 @@ func (s *Service) Submit(
 ) (model.Candidate, error) {
 	partition := core.PartitionFromTime(req.OriginalTimestamp)
 
-	releaseCandidate, err := s.candidateLocker.SharedLock(ctx, partition)
+	releaseCandidate, err := s.storage.SharedLock(ctx, partition)
 	if err != nil {
 		return model.Candidate{}, fmt.Errorf("candidate: lock candidate partition %s: %w", partition, err)
 	}

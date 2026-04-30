@@ -17,11 +17,14 @@ import (
 	sloghttp "github.com/samber/slog-http"
 
 	command "github.com/gitrus/digikeeper-log/internal/domain/command/append"
+	domainCandidate "github.com/gitrus/digikeeper-log/internal/domain/command/candidate"
+	domainCompaction "github.com/gitrus/digikeeper-log/internal/domain/command/compaction"
 	"github.com/gitrus/digikeeper-log/internal/domain/query"
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
 	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
+	"github.com/gitrus/digikeeper-log/internal/infrastructure/candidatestore"
 	store "github.com/gitrus/digikeeper-log/internal/infrastructure/commandstore"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/querystore"
@@ -52,7 +55,10 @@ func run() error {
 		return fmt.Errorf("mkdir %s: %w", dataPath, err)
 	}
 
-	idx, err := index.New(filepath.Join(dataPath, "index.db"))
+	idx, err := index.New(filepath.Join(dataPath, "index.db"), index.Config{
+		JournalMode: cfg.SQLite.JournalMode,
+		BusyTimeout: cfg.SQLite.BusyTimeout,
+	})
 	if err != nil {
 		return fmt.Errorf("init index: %w", err)
 	}
@@ -64,6 +70,11 @@ func run() error {
 	}
 	defer func() { _ = logStore.Close() }()
 
+	candidateStore, err := candidatestore.New(dataPath)
+	if err != nil {
+		return fmt.Errorf("init candidate storage: %w", err)
+	}
+
 	qryStore := querystore.NewStore(filepath.Join(dataPath, "dk_logs"), idx)
 
 	// Sources
@@ -71,10 +82,14 @@ func run() error {
 
 	// Services
 	cmdSvc := command.NewService(logStore, srcRepo, logger)
+	candidateSvc := domainCandidate.NewService(candidateStore, logStore, logger)
+	compactionSvc := domainCompaction.NewService(logStore, candidateStore, idx, logger)
 	qrySvc := query.NewService(qryStore, qryStore, logger)
 
 	// Handlers
 	cmdHandler := apicmd.NewHandler(cmdSvc, srcRepo.ResolveName)
+	candidateHandler := apicmd.NewCandidateHandler(candidateSvc)
+	compactionHandler := apicmd.NewCompactionHandler(compactionSvc)
 	qryHandler := apiqry.NewHandler(qrySvc, srcRepo.ResolveName)
 	regHandler, err := apireg.NewHandler()
 	if err != nil {
@@ -100,6 +115,34 @@ func run() error {
 		Summary:       "Append a log entry",
 		DefaultStatus: http.StatusCreated,
 	}, cmdHandler.AppendLog)
+	huma.Register(api, huma.Operation{
+		OperationID:   "submit-candidate",
+		Method:        http.MethodPost,
+		Path:          "/v1/candidates",
+		Summary:       "Submit a candidate replacement",
+		DefaultStatus: http.StatusCreated,
+	}, candidateHandler.SubmitCandidate)
+	huma.Register(api, huma.Operation{
+		OperationID:   "list-pending-candidates",
+		Method:        http.MethodGet,
+		Path:          "/v1/candidates/pending",
+		Summary:       "List pending candidates",
+		DefaultStatus: http.StatusOK,
+	}, candidateHandler.ListPendingCandidates)
+	huma.Register(api, huma.Operation{
+		OperationID:   "resolve-candidates",
+		Method:        http.MethodPost,
+		Path:          "/v1/candidates/resolve",
+		Summary:       "Resolve pending candidates for a partition",
+		DefaultStatus: http.StatusOK,
+	}, candidateHandler.ResolveCandidates)
+	huma.Register(api, huma.Operation{
+		OperationID:   "compact-partition",
+		Method:        http.MethodPost,
+		Path:          "/v1/compaction",
+		Summary:       "Compact applied candidates into a log partition",
+		DefaultStatus: http.StatusOK,
+	}, compactionHandler.CompactPartition)
 	huma.Register(api, huma.Operation{
 		OperationID:   "list-schemas",
 		Method:        http.MethodGet,

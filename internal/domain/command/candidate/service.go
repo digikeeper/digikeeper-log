@@ -8,14 +8,10 @@ import (
 	"github.com/gitrus/digikeeper-log/internal/domain/core"
 )
 
-// CandidateLocker serializes submit and resolve on the candidate partition.
-type CandidateLocker interface {
+// Storage manages candidate lifecycle: append, list pending, move, and partition locking.
+type Storage interface {
 	SharedLock(ctx context.Context, partition core.Partition) (release func(), err error)
 	ExclusiveLock(ctx context.Context, partition core.Partition) (release func(), err error)
-}
-
-// Storage manages candidate lifecycle: append, list pending, and move.
-type Storage interface {
 	AppendCandidate(ctx context.Context, c model.Candidate) error
 	ListPending(ctx context.Context, partition core.Partition) ([]model.Candidate, error)
 	MoveCandidates(ctx context.Context, partition core.Partition, applied, denied []model.Candidate) error
@@ -28,12 +24,11 @@ type LogStorage interface {
 
 // Service handles candidate commands: submit and resolve.
 type Service struct {
-	candidateLocker CandidateLocker
-	storage         Storage
-	logStorage      LogStorage
-	logger          *slog.Logger
+	storage    Storage
+	logStorage LogStorage
+	logger     *slog.Logger
 }
 
-func NewService(candidateLocker CandidateLocker, s Storage, ls LogStorage, logger *slog.Logger) *Service {
-	return &Service{candidateLocker: candidateLocker, storage: s, logStorage: ls, logger: logger}
+func NewService(s Storage, ls LogStorage, logger *slog.Logger) *Service {
+	return &Service{storage: s, logStorage: ls, logger: logger}
 }

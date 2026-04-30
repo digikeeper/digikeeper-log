@@ -12,8 +12,8 @@ type CompactRequest struct {
 	Partition core.Partition `json:"partition"`
 }
 
-// JournalEvent records a completed compaction for the audit trail.
-type JournalEvent struct {
+// CandidateAuditEvent records a completed compaction for the audit trail.
+type CandidateAuditEvent struct {
 	Partition    core.Partition `json:"partition"`
 	AppliedCount int            `json:"applied_count"`
 	CompletedAt  time.Time      `json:"completed_at"`

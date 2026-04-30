@@ -20,7 +20,7 @@ func (s *Service) Resolve(
 	partition core.Partition,
 	req ResolveRequest,
 ) ([]model.Candidate, error) {
-	release, err := s.candidateLocker.ExclusiveLock(ctx, partition)
+	release, err := s.storage.ExclusiveLock(ctx, partition)
 	if err != nil {
 		return nil, fmt.Errorf("candidate: lock candidate partition %s: %w", partition, err)
 	}
