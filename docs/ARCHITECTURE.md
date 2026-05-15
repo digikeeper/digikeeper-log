@@ -35,7 +35,7 @@ Dependencies flow inward. Interfaces defined at the usage-model-level.
 ## Handler Segregation
 
 Handlers under `internal/httpapi/` mirror the CQS split so that read and write paths evolve independently — different validation rules, status codes, and future middleware (e.g. rate limiting writes only).
-`httpapi/command` owns mutation concerns; `httpapi/query` owns read concerns; `httpapi/registry` is stateless schema discovery with no domain coupling.
+`httpapi/command` owns mutation concerns; `httpapi/query` owns read concerns; `httpapi/schemaregistry` is stateless schema discovery with no domain coupling.
 Shared utilities (`response.go`, `errors.go`, `middleware.go`) are kept at the `httpapi/` root to avoid duplication without blurring the command/query boundary.
 
 ## Infrastructure Split
@@ -61,7 +61,7 @@ The API follows the main guidelines of [JSON:API](https://jsonapi.org/) specific
 Before making API design decisions, consult the spec and its addendums first.
 
 ## See Also
-- [Registry Handlers](REGISTRY_HANDLERS.md)
+- [Schema Registry Handlers](SCHEMA_REGISTRY_HANDLERS.md)
 - [Candidate Compaction](CANDIDATE_COMPACTION.md)
 
 ## Trade-offs

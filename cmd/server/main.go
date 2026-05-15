@@ -82,8 +82,12 @@ func run() error {
 
 	// Services
 	cmdSvc := command.NewService(logStore, srcRepo, logger)
-	candidateSvc := domainCandidate.NewService(candidateStore, logStore, logger)
-	compactionSvc := domainCompaction.NewService(logStore, candidateStore, idx, logger)
+	candidateSvc := domainCandidate.NewService(
+		candidateStore, candidateStore, logStore, logger,
+	)
+	compactionSvc := domainCompaction.NewService(
+		logStore, candidateStore, logStore, candidateStore, candidateStore, idx, logger,
+	)
 	qrySvc := query.NewService(qryStore, qryStore, logger)
 
 	// Handlers

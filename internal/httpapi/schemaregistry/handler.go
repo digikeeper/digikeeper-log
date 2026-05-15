@@ -1,4 +1,4 @@
-package registry
+package schemaregistry
 
 import (
 	"context"
@@ -27,7 +27,7 @@ type Handler struct {
 func NewHandler() (*Handler, error) {
 	entries, err := schemasFS.ReadDir("schemas")
 	if err != nil {
-		return nil, fmt.Errorf("registry: read embedded schemas: %w", err)
+		return nil, fmt.Errorf("schemaregistry: read embedded schemas: %w", err)
 	}
 
 	schemas := make(map[string]json.RawMessage, len(entries))
@@ -38,7 +38,7 @@ func NewHandler() (*Handler, error) {
 		}
 		data, err := schemasFS.ReadFile("schemas/" + e.Name())
 		if err != nil {
-			return nil, fmt.Errorf("registry: read %s: %w", e.Name(), err)
+			return nil, fmt.Errorf("schemaregistry: read %s: %w", e.Name(), err)
 		}
 		name := strings.TrimSuffix(e.Name(), ".json")
 		schemas[name] = json.RawMessage(data)
