@@ -1,20 +1,20 @@
-# Registry Handlers
+# Schema Registry Handlers
 
 ## Description
 
-Registry handlers expose supported log entry schemas over HTTP.
-They live in `internal/httpapi/registry` and are wired from `cmd/server`.
+Schema registry handlers expose supported log entry schemas over HTTP.
+They live in `internal/httpapi/schemaregistry` and are wired from `cmd/server`.
 
 Current endpoints:
 - `GET /v1/registry` returns all known entry schemas.
 - `GET /v1/registry/{type}` returns one schema by entry type.
 
-Schemas are JSON files in `internal/httpapi/registry/schemas`.
+Schemas are JSON files in `internal/httpapi/schemaregistry/schemas`.
 The handler embeds them with `go:embed`, loads them at startup, and keeps each schema as `json.RawMessage`.
 The filename without `.json` becomes the public entry type name.
 
 Example:
-- `schemas/note.json` becomes registry type `note`.
+- `schemas/note.json` becomes schema registry type `note`.
 
 ## Why It Exists
 
@@ -24,7 +24,7 @@ It cna be used by agentic client as well.
 
 ## Boundaries
 
-The registry is read-only application metadata, not user data.
+The schema registry is read-only application metadata, not user data.
 Schema changes should go through code review and deployment.
 
 The handler stays in `internal/httpapi` because it has no business workflow or mutable storage.

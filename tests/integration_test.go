@@ -22,7 +22,7 @@ import (
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
-	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
+	apisreg "github.com/gitrus/digikeeper-log/internal/httpapi/schemaregistry"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/candidatestore"
 	store "github.com/gitrus/digikeeper-log/internal/infrastructure/commandstore"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
@@ -131,8 +131,8 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	candidateHandler := apicmd.NewCandidateHandler(candidateSvc)
 	compactionHandler := apicmd.NewCompactionHandler(compactionSvc)
 	qryHandler := apiqry.NewHandler(qrySvc, srcRepo.ResolveName)
-	regHandler, err := apireg.NewHandler()
-	require.NoError(t, err, "init registry")
+	sregHandler, err := apisreg.NewHandler()
+	require.NoError(t, err, "init schema registry")
 
 	mux := http.NewServeMux()
 	api := humago.New(mux, httpapi.NewHumaConfig("Digikeeper Log", "1.0.0"))
@@ -187,14 +187,14 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		Path:          "/v1/registry",
 		Summary:       "List all entry type schemas",
 		DefaultStatus: http.StatusOK,
-	}, regHandler.ListSchemas)
+	}, sregHandler.ListSchemas)
 	huma.Register(api, huma.Operation{
 		OperationID:   "get-schema",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}",
 		Summary:       "Get schema for an entry type",
 		DefaultStatus: http.StatusOK,
-	}, regHandler.GetSchema)
+	}, sregHandler.GetSchema)
 
 	sloghttp.RequestIDHeaderKey = "X-Request-ID"
 	handler := sloghttp.NewWithConfig(logger, sloghttp.Config{
@@ -498,7 +498,7 @@ func TestAppendGeneratesRequestIDWhenMissing(t *testing.T) {
 	assert.NotEmpty(t, got.Data.Attributes.RequestID)
 }
 
-func TestRegistryListSchemas(t *testing.T) {
+func TestSchemaRegistryListSchemas(t *testing.T) {
 	srv := setupTestServer(t)
 
 	resp := getURL(t, srv.URL+"/v1/registry")
@@ -517,7 +517,7 @@ func TestRegistryListSchemas(t *testing.T) {
 	assert.Equal(t, "note", got.Schemas[0].Type)
 }
 
-func TestRegistryGetSchema(t *testing.T) {
+func TestSchemaRegistryGetSchema(t *testing.T) {
 	srv := setupTestServer(t)
 
 	resp := getURL(t, srv.URL+"/v1/registry/note")
