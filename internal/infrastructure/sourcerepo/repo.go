@@ -21,10 +21,10 @@ type Repo struct {
 	byID   map[int]source
 }
 
-func New() *Repo {
+func New() (*Repo, error) {
 	var raw map[string]int
 	if err := jsonx.Unmarshal(sourcesRaw, &raw); err != nil {
-		panic(fmt.Sprintf("sourcerepo: unmarshal sources.json: %v", err))
+		return nil, fmt.Errorf("sourcerepo: unmarshal sources.json: %v", err)
 	}
 	byName := make(map[string]source, len(raw))
 	byID := make(map[int]source, len(raw))
@@ -33,7 +33,7 @@ func New() *Repo {
 		byName[name] = s
 		byID[id] = s
 	}
-	return &Repo{byName: byName, byID: byID}
+	return &Repo{byName: byName, byID: byID}, nil
 }
 
 // ResolveID return id of client by name

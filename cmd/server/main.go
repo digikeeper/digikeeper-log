@@ -78,7 +78,10 @@ func run() error {
 	qryStore := querystore.NewStore(filepath.Join(dataPath, "dk_logs"), idx)
 
 	// Sources
-	srcRepo := sourcerepo.New()
+	srcRepo, err := sourcerepo.New()
+	if err != nil {
+		return fmt.Errorf("init sources: %w", err)
+	}
 
 	// Services
 	cmdSvc := command.NewService(logStore, srcRepo, logger)
@@ -177,9 +180,9 @@ func run() error {
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      handler,
-		ReadTimeout:  6 * time.Second,
-		WriteTimeout: 12 * time.Second,
-		IdleTimeout:  18 * time.Second,
+		ReadTimeout:  cfg.API.Timeout,
+		WriteTimeout: cfg.API.Timeout,
+		IdleTimeout:  2 * cfg.API.Timeout,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

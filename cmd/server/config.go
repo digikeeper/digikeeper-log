@@ -14,7 +14,7 @@ type CommonConfig struct {
 }
 
 type APIConfig struct {
-	Timeout   time.Duration `env:"API_TIMEOUT" env-default:"5s"`
+	Timeout   time.Duration `env:"TIMEOUT" env-default:"5s"`
 	LocalPort string        `env:"LOCAL_PORT" env-default:"9000"`
 	LocalHost string        `env:"LOCAL_HOST" env-default:"localhost"`
 }
