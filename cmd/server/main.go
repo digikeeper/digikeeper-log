@@ -23,7 +23,7 @@ import (
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
 	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
 	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
-	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
+	apisreg "github.com/gitrus/digikeeper-log/internal/httpapi/schemaregistry"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/candidatestore"
 	store "github.com/gitrus/digikeeper-log/internal/infrastructure/commandstore"
 	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
@@ -82,8 +82,12 @@ func run() error {
 
 	// Services
 	cmdSvc := command.NewService(logStore, srcRepo, logger)
-	candidateSvc := domainCandidate.NewService(candidateStore, logStore, logger)
-	compactionSvc := domainCompaction.NewService(logStore, candidateStore, idx, logger)
+	candidateSvc := domainCandidate.NewService(
+		candidateStore, logStore, logger,
+	)
+	compactionSvc := domainCompaction.NewService(
+		logStore, candidateStore, idx, logger,
+	)
 	qrySvc := query.NewService(qryStore, qryStore, logger)
 
 	// Handlers
@@ -91,7 +95,7 @@ func run() error {
 	candidateHandler := apicmd.NewCandidateHandler(candidateSvc)
 	compactionHandler := apicmd.NewCompactionHandler(compactionSvc)
 	qryHandler := apiqry.NewHandler(qrySvc, srcRepo.ResolveName)
-	regHandler, err := apireg.NewHandler()
+	sregHandler, err := apisreg.NewHandler()
 	if err != nil {
 		return fmt.Errorf("init registry: %w", err)
 	}
@@ -149,14 +153,14 @@ func run() error {
 		Path:          "/v1/registry",
 		Summary:       "List all entry type schemas",
 		DefaultStatus: http.StatusOK,
-	}, regHandler.ListSchemas)
+	}, sregHandler.ListSchemas)
 	huma.Register(api, huma.Operation{
 		OperationID:   "get-schema",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}",
 		Summary:       "Get schema for an entry type",
 		DefaultStatus: http.StatusOK,
-	}, regHandler.GetSchema)
+	}, sregHandler.GetSchema)
 
 	mux.HandleFunc("GET /healthz", healthz.Handle)
 	mux.Handle("/debug/", http.DefaultServeMux)

@@ -1,4 +1,4 @@
-package registry_test
+package schemaregistry_test
 
 import (
 	"encoding/json"
@@ -12,13 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gitrus/digikeeper-log/internal/httpapi"
-	apireg "github.com/gitrus/digikeeper-log/internal/httpapi/registry"
+	apisreg "github.com/gitrus/digikeeper-log/internal/httpapi/schemaregistry"
 )
 
 func setupRegistryServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
-	h, err := apireg.NewHandler()
+	h, err := apisreg.NewHandler()
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
