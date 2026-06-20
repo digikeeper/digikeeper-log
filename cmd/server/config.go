@@ -28,11 +28,16 @@ type SQLiteConfig struct {
 	BusyTimeout time.Duration `env:"BUSY_TIMEOUT" env-default:"5s"`
 }
 
+type DebugConfig struct {
+	Enabled bool `env:"ENABLED" env-default:"false"`
+}
+
 type Config struct {
 	Common     CommonConfig     `yaml:"common"`
 	LogStorage LogStorageConfig `yaml:"log_storage" env-prefix:"LOG_STORAGE_"`
 	SQLite     SQLiteConfig     `yaml:"sqlite" env-prefix:"SQLITE_"`
 	API        APIConfig        `yaml:"api" env-prefix:"API_"`
+	Debug      DebugConfig      `yaml:"debug" env-prefix:"DEBUG_"`
 }
 
 func (c *Config) IsDevEnv() bool {

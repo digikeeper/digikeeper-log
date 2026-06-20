@@ -120,7 +120,8 @@ func setupTestServer(t *testing.T) *httptest.Server {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	srcRepo := sourcerepo.New()
+	srcRepo, err := sourcerepo.New()
+	require.NoError(t, err, "init sources")
 
 	cmdSvc := command.NewService(logStore, srcRepo, logger)
 	candidateSvc := domainCandidate.NewService(candidateStore, logStore, logger)

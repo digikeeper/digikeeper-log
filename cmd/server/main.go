@@ -166,7 +166,10 @@ func run() error {
 	}, sregHandler.GetSchema)
 
 	mux.HandleFunc("GET /healthz", healthz.Handle)
-	mux.Handle("/debug/", http.DefaultServeMux)
+	if cfg.Debug.Enabled {
+		mux.Handle("/debug/", http.DefaultServeMux)
+		logger.Info("debug endpoints enabled", slog.String("path", "/debug/"))
+	}
 
 	sloghttp.RequestIDHeaderKey = "X-Request-ID"
 	handler := chain.New(

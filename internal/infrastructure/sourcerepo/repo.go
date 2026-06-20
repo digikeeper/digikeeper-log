@@ -24,7 +24,7 @@ type Repo struct {
 func New() (*Repo, error) {
 	var raw map[string]int
 	if err := jsonx.Unmarshal(sourcesRaw, &raw); err != nil {
-		return nil, fmt.Errorf("sourcerepo: unmarshal sources.json: %v", err)
+		return nil, fmt.Errorf("sourcerepo: unmarshal sources.json: %w", err)
 	}
 	byName := make(map[string]source, len(raw))
 	byID := make(map[int]source, len(raw))
