@@ -27,8 +27,9 @@ schemas/note_v2.json  → type: note, version: 2
 A schema identity is `(type, version)`. Published schema files are immutable == add a new
 file for a changed schema instead of modifying an existing version.
 
-An entry persists its schema version in `m.v`. This identifies the exact registry schema
-needed to interpret that entry; it never means "latest".
+An entry persists its schema version in `m.sv` (`m.v` is a legacy read-only alias for
+pre-existing JSONL entries). This identifies the exact registry schema needed to
+interpret that entry; it never means "latest".
 
 Entry metadata also contains `m.r`, its logical revision:
 

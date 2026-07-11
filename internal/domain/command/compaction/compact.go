@@ -22,7 +22,9 @@ import (
 //  8. Append event to candidate audit.
 //
 // Steps 6–8 are best-effort. If they fail, next compaction sees the same
-// applied candidates and re-applies them (idempotent: same full-copy by ID).
+// applied candidates; the revision CAS in applyCandidate detects them as
+// already applied, skips them (not counted in appliedCount/audit), and
+// deletes them. The end state is idempotent.
 func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 	// 1. Read applied candidates.
 	applied, err := s.candidates.ListApplied(ctx, req.Partition)

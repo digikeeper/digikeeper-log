@@ -100,7 +100,7 @@ func run() error {
 	qryHandler := apiqry.NewHandler(qrySvc, srcRepo.ResolveName)
 	sregHandler, err := apisreg.NewHandler()
 	if err != nil {
-		return fmt.Errorf("init registry: %w", err)
+		return fmt.Errorf("init schema registry: %w", err)
 	}
 
 	// API
