@@ -158,8 +158,8 @@ func buildBenchData(b *testing.B) benchData {
 	entry := core.Entry{
 		ID: "bench-entry",
 		Meta: core.EntryMeta{
-			Version: 1,
-			Src:     1,
+			SchemaVersion: 1,
+			Src:           1,
 		},
 		RequestID: "bench-request",
 		CreatedAt: ts.Add(15 * time.Second),

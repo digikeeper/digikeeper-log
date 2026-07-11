@@ -32,10 +32,15 @@
       "x-alias": "m",
       "description": "System-managed entry metadata, set automatically on creation",
       "properties": {
-        "version": {
+        "schema_version": {
           "type": "integer",
-          "x-alias": "v",
-          "description": "Entry schema version"
+          "x-alias": "sv",
+          "description": "Immutable schema version"
+        },
+        "revision": {
+          "type": "integer",
+          "x-alias": "r",
+          "description": "Logical entry revision; increments when an approved candidate replaces the entry"
         },
         "source": {
           "type": ["integer", "string"],

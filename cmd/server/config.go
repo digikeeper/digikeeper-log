@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -16,11 +17,11 @@ type CommonConfig struct {
 type APIConfig struct {
 	Timeout   time.Duration `env:"TIMEOUT" env-default:"5s"`
 	LocalPort string        `env:"LOCAL_PORT" env-default:"9000"`
-	LocalHost string        `env:"LOCAL_HOST" env-default:"localhost"`
+	LocalHost string        `env:"LOCAL_HOST" env-required:"true"`
 }
 
 type LogStorageConfig struct {
-	Path string `env:"PATH" env-required:"true"`
+	Path string `env:"PATH" env-default:"/var/lib/digikeeper"`
 }
 
 type SQLiteConfig struct {
@@ -47,8 +48,10 @@ func (c *Config) IsDevEnv() bool {
 func configure() Config {
 	var cfg Config
 
-	if err := cleanenv.ReadConfig(".env", &cfg); err != nil {
-		log.Printf("No .env loaded: %v", err)
+	if os.Getenv("DIGIKEEPER_LOAD_DOTENV") == "true" {
+		if err := cleanenv.ReadConfig(".env", &cfg); err != nil {
+			log.Printf("No .env loaded: %v", err)
+		}
 	}
 
 	if err := cleanenv.ReadEnv(&cfg); err != nil {

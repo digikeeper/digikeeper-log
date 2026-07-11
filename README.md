@@ -15,7 +15,7 @@ Copy `.env.example` → `.env`.
 
 ```bash
 just build   # → ./bin/server
-just run     # go run
+just run     # go run; loads local .env
 just lint    # golangci-lint
 just fmt     # golangci-lint --fix
 ```

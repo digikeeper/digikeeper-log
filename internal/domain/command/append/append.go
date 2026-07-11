@@ -21,8 +21,9 @@ func (s *Service) AppendEntry(
 		ID:   uuid.NewString(),
 		Type: req.Type,
 		Meta: core.EntryMeta{
-			Version: 1,
-			Src:     s.sourceRepo.ResolveID(req.ClientID),
+			SchemaVersion: 1,
+			Revision:      1,
+			Src:           s.sourceRepo.ResolveID(req.ClientID),
 		},
 		RequestID: requestID,
 		CreatedAt: time.Now().UTC(),

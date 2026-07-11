@@ -62,8 +62,9 @@ type entryAttrs struct {
 }
 
 type entryMeta struct {
-	Version int    `json:"version"`
-	Source  string `json:"source"`
+	SchemaVersion int    `json:"schema_version"`
+	Revision      int    `json:"revision"`
+	Source        string `json:"source"`
 }
 
 type candidateResponse struct {
@@ -192,9 +193,16 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		OperationID:   "get-schema",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}",
-		Summary:       "Get schema for an entry type",
+		Summary:       "Get the latest schema for an entry type",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.GetSchema)
+	huma.Register(api, huma.Operation{
+		OperationID:   "get-schema-version",
+		Method:        http.MethodGet,
+		Path:          "/v1/registry/{type}/{version}",
+		Summary:       "Get an immutable schema version for an entry type",
+		DefaultStatus: http.StatusOK,
+	}, sregHandler.GetSchemaVersion)
 
 	sloghttp.RequestIDHeaderKey = "X-Request-ID"
 	handler := sloghttp.NewWithConfig(logger, sloghttp.Config{

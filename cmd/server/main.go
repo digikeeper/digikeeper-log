@@ -161,9 +161,16 @@ func run() error {
 		OperationID:   "get-schema",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}",
-		Summary:       "Get schema for an entry type",
+		Summary:       "Get the latest schema for an entry type",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.GetSchema)
+	huma.Register(api, huma.Operation{
+		OperationID:   "get-schema-version",
+		Method:        http.MethodGet,
+		Path:          "/v1/registry/{type}/{version}",
+		Summary:       "Get an immutable schema version for an entry type",
+		DefaultStatus: http.StatusOK,
+	}, sregHandler.GetSchemaVersion)
 
 	mux.HandleFunc("GET /healthz", healthz.Handle)
 	if cfg.Debug.Enabled {

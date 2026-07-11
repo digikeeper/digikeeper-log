@@ -12,8 +12,9 @@ type EntryResource struct {
 }
 
 type EntryResourceMeta struct {
-	Version int    `json:"version"`
-	Source  string `json:"source"`
+	SchemaVersion int    `json:"schema_version"`
+	Revision      int    `json:"revision"`
+	Source        string `json:"source"`
 }
 
 type EntryResourceAttrs struct {
@@ -37,8 +38,9 @@ func NewEntryResource(e core.Entry, resolve func(int) string) EntryResource {
 		attrs: EntryResourceAttrs{
 			Type: e.Type,
 			Meta: EntryResourceMeta{
-				Version: e.Meta.Version,
-				Source:  resolve(e.Meta.Src),
+				SchemaVersion: e.Meta.SchemaVersion,
+				Revision:      e.Meta.Revision,
+				Source:        resolve(e.Meta.Src),
 			},
 			RequestID: e.RequestID,
 			CreatedAt: e.CreatedAt,

@@ -55,7 +55,7 @@ func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 	}
 
 	// 4. Substitute.
-	rewritten, appliedCount := applySubstitutions(entries, applied)
+	rewritten, appliedCount := s.applySubstitutions(entries, applied)
 
 	// 5. Atomic rewrite.
 	if err := s.logs.ReplacePartition(ctx, req.Partition, rewritten); err != nil {
@@ -103,36 +103,79 @@ func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 
 // applySubstitutions replaces entries whose ID matches an applied candidate and
 // appends applied candidates with no matching entry to the end of the partition.
-func applySubstitutions(
+func (s *Service) applySubstitutions(
 	entries []core.Entry,
 	applied []model.Candidate,
 ) ([]core.Entry, int) {
-	replacements := make(map[string]core.Entry, len(applied))
-	for _, c := range applied {
-		replacements[c.EntryID] = c.Entry
+	candidatesByEntryID := make(map[string]model.Candidate, len(applied))
+	for _, candidate := range applied {
+		candidatesByEntryID[candidate.EntryID] = candidate
 	}
 
-	count := 0
+	appliedCount := 0
 	seen := make(map[string]struct{}, len(applied))
 	result := make([]core.Entry, 0, len(entries)+len(applied))
-	for _, e := range entries {
-		if replacement, ok := replacements[e.ID]; ok {
-			result = append(result, replacement)
-			seen[e.ID] = struct{}{}
-			count++
-		} else {
-			result = append(result, e)
-		}
-	}
-
-	for _, c := range applied {
-		if _, ok := seen[c.EntryID]; ok {
+	for _, entry := range entries {
+		candidate, ok := candidatesByEntryID[entry.ID]
+		if !ok {
+			result = append(result, entry)
 			continue
 		}
-		result = append(result, c.Entry)
-		seen[c.EntryID] = struct{}{}
-		count++
+
+		replacement, applied := s.applyCandidate(entry, candidate)
+		result = append(result, replacement)
+		seen[entry.ID] = struct{}{}
+		if applied {
+			appliedCount++
+		}
 	}
 
-	return result, count
+	for _, candidate := range applied {
+		if _, ok := seen[candidate.EntryID]; ok {
+			continue
+		}
+		replacement := candidate.Entry
+		replacement.Meta.Revision = nextRevision(replacement.Meta.Revision)
+		result = append(result, replacement)
+		seen[candidate.EntryID] = struct{}{}
+		appliedCount++
+	}
+
+	return result, appliedCount
+}
+
+func (s *Service) applyCandidate(current core.Entry, candidate model.Candidate) (core.Entry, bool) {
+	replacement := candidate.Entry
+	currentRevision := normalizedRevision(current.Meta.Revision)
+	candidateRevision := normalizedRevision(replacement.Meta.Revision)
+
+	// A candidate is a compare-and-swap operation over the revision it copied
+	// at submission. It is stale after a successful rewrite whose applied-file
+	// cleanup failed, and it is invalid if it was somehow created from a future
+	// revision. In both cases, preserve the current entry.
+	if candidateRevision != currentRevision {
+		s.logger.Warn("skipping candidate with mismatched entry revision",
+			slog.String("candidate_id", candidate.ID),
+			slog.String("entry_id", current.ID),
+			slog.Int("candidate_revision", candidateRevision),
+			slog.Int("current_revision", currentRevision),
+		)
+		return current, false
+	}
+
+	replacement.Meta.Revision = nextRevision(current.Meta.Revision)
+	return replacement, true
+}
+
+func nextRevision(revision int) int {
+	return normalizedRevision(revision) + 1
+}
+
+func normalizedRevision(revision int) int {
+	// Entries written before revisions existed omit "r". Treat them as the
+	// initial logical revision so their first replacement becomes revision 2.
+	if revision < 1 {
+		return 1
+	}
+	return revision
 }

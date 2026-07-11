@@ -6,7 +6,7 @@ build:
     go build -o {{ bin }}/server {{ cmd }}/server
 
 run:
-    go run {{ cmd }}/server
+    DIGIKEEPER_LOAD_DOTENV=true go run {{ cmd }}/server
 
 lint:
     golangci-lint run ./... && go fix -diff ./...

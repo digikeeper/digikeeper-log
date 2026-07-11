@@ -32,7 +32,8 @@ func TestPostEntry(t *testing.T) {
 	assert.Equal(t, "2026-03-08T10:00:00Z", got.Data.Attributes.Timestamp)
 	assert.Equal(t, []string{"work"}, got.Data.Attributes.Tags)
 	assert.Equal(t, "test", got.Data.Attributes.Data["note"])
-	assert.Equal(t, 1, got.Data.Attributes.Meta.Version)
+	assert.Equal(t, 1, got.Data.Attributes.Meta.SchemaVersion)
+	assert.Equal(t, 1, got.Data.Attributes.Meta.Revision)
 	assert.Equal(t, "", got.Data.Attributes.Meta.Source)
 	assert.NotEmpty(t, got.Data.Attributes.CreatedAt)
 }
@@ -141,13 +142,16 @@ func TestSchemaRegistryListSchemas(t *testing.T) {
 
 	var got struct {
 		Schemas []struct {
-			Type   string `json:"type"`
-			Schema any    `json:"schema"`
+			Type          string `json:"type"`
+			LatestVersion int    `json:"latest_version"`
+			Versions      []int  `json:"versions"`
 		} `json:"schemas"`
 	}
 	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 	require.Len(t, got.Schemas, 1)
 	assert.Equal(t, "note", got.Schemas[0].Type)
+	assert.Equal(t, 1, got.Schemas[0].LatestVersion)
+	assert.Equal(t, []int{1}, got.Schemas[0].Versions)
 }
 
 func TestSchemaRegistryGetSchema(t *testing.T) {
@@ -159,9 +163,28 @@ func TestSchemaRegistryGetSchema(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	var got struct {
-		Type   string `json:"type"`
-		Schema any    `json:"schema"`
+		Type    string `json:"type"`
+		Version int    `json:"version"`
+		Schema  any    `json:"schema"`
 	}
 	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
 	assert.Equal(t, "note", got.Type)
+	assert.Equal(t, 1, got.Version)
+}
+
+func TestSchemaRegistryGetSchemaVersion(t *testing.T) {
+	srv := setupTestServer(t)
+
+	resp := getURL(t, srv.URL+"/v1/registry/note/1")
+	defer closeResponseBody(t, resp)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got struct {
+		Type    string `json:"type"`
+		Version int    `json:"version"`
+	}
+	require.NoError(t, jsonx.UnmarshalRead(resp.Body, &got))
+	assert.Equal(t, "note", got.Type)
+	assert.Equal(t, 1, got.Version)
 }

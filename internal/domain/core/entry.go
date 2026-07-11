@@ -1,10 +1,40 @@
 package core
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type EntryMeta struct {
-	Version int `json:"v"`
-	Src     int `json:"s"`
+	SchemaVersion int `json:"sv"`
+	Revision      int `json:"r"`
+	Src           int `json:"s"`
+}
+
+// UnmarshalJSON accepts the former "v" alias so existing JSONL entries remain
+// readable. New writes use the unambiguous "sv" alias.
+func (m *EntryMeta) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		SchemaVersion       *int `json:"sv"`
+		LegacySchemaVersion *int `json:"v"`
+		Revision            int  `json:"r"`
+		Src                 int  `json:"s"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	m.Revision = raw.Revision
+	m.Src = raw.Src
+	switch {
+	case raw.SchemaVersion != nil:
+		m.SchemaVersion = *raw.SchemaVersion
+	case raw.LegacySchemaVersion != nil:
+		m.SchemaVersion = *raw.LegacySchemaVersion
+	default:
+		m.SchemaVersion = 0
+	}
+	return nil
 }
 
 type Entry struct {

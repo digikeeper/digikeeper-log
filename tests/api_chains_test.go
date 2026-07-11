@@ -105,6 +105,7 @@ func TestCandidateResolveAndCompactFlow(t *testing.T) {
 	require.Len(t, queried.Data, 1)
 	assert.Equal(t, appended.Data.ID, queried.Data[0].ID)
 	assert.Equal(t, "corrected text", queried.Data[0].Attributes.Data["note"])
+	assert.Equal(t, 2, queried.Data[0].Attributes.Meta.Revision)
 
 	compactAgainResp := postJSON(t, srv.URL+"/v1/compaction", `{"partition":"2026-03-08"}`)
 	defer closeResponseBody(t, compactAgainResp)
