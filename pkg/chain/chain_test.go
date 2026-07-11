@@ -25,9 +25,11 @@ func finalHandler() http.Handler {
 	})
 }
 
-func serveAndGetOrder(h http.Handler) []string {
+func serveAndGetOrder(t *testing.T, h http.Handler) []string {
+	t.Helper()
+
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 	return rec.Header().Values("X-Order")
 }
 
@@ -55,7 +57,7 @@ func TestThen(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := serveAndGetOrder(New(tt.constructors...).Then(finalHandler()))
+			got := serveAndGetOrder(t, New(tt.constructors...).Then(finalHandler()))
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -89,7 +91,7 @@ func TestThenFunc(t *testing.T) {
 		w.Header().Add("X-Order", "fn")
 	})
 
-	got := serveAndGetOrder(h)
+	got := serveAndGetOrder(t, h)
 	assert.True(t, called)
 	assert.Equal(t, []string{"m1", "fn"}, got)
 }
@@ -102,13 +104,13 @@ func TestAppend(t *testing.T) {
 
 	t.Run("original chain unchanged", func(t *testing.T) {
 		t.Parallel()
-		got := serveAndGetOrder(base.Then(finalHandler()))
+		got := serveAndGetOrder(t, base.Then(finalHandler()))
 		assert.Equal(t, []string{"m1", "handler"}, got)
 	})
 
 	t.Run("extended chain has all", func(t *testing.T) {
 		t.Parallel()
-		got := serveAndGetOrder(extended.Then(finalHandler()))
+		got := serveAndGetOrder(t, extended.Then(finalHandler()))
 		assert.Equal(t, []string{"m1", "m2", "m3", "handler"}, got)
 	})
 }
@@ -133,7 +135,7 @@ func TestChain_Reuse(t *testing.T) {
 			h := c.ThenFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Add("X-Order", tag)
 			})
-			got := serveAndGetOrder(h)
+			got := serveAndGetOrder(t, h)
 			assert.Equal(t, tt.want, got)
 		})
 	}
