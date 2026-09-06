@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command/compaction"
-	commandmodel "github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/errs"
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
-	"github.com/gitrus/digikeeper-log/pkg/flock"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/command/compaction"
+	commandmodel "github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/errs"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
+	"github.com/digikeeper/digikeeper-journal/pkg/flock"
 )
 
 const (

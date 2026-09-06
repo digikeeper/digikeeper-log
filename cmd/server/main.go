@@ -16,21 +16,21 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	sloghttp "github.com/samber/slog-http"
 
-	command "github.com/gitrus/digikeeper-log/internal/domain/command/append"
-	domainCandidate "github.com/gitrus/digikeeper-log/internal/domain/command/candidate"
-	domainCompaction "github.com/gitrus/digikeeper-log/internal/domain/command/compaction"
-	"github.com/gitrus/digikeeper-log/internal/domain/query"
-	"github.com/gitrus/digikeeper-log/internal/httpapi"
-	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
-	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
-	apisreg "github.com/gitrus/digikeeper-log/internal/httpapi/schemaregistry"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/candidatestore"
-	store "github.com/gitrus/digikeeper-log/internal/infrastructure/commandstore"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/querystore"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/sourcerepo"
-	"github.com/gitrus/digikeeper-log/pkg/chain"
-	"github.com/gitrus/digikeeper-log/pkg/healthz"
+	command "github.com/digikeeper/digikeeper-journal/internal/domain/command/append"
+	domainCandidate "github.com/digikeeper/digikeeper-journal/internal/domain/command/candidate"
+	domainCompaction "github.com/digikeeper/digikeeper-journal/internal/domain/command/compaction"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/query"
+	"github.com/digikeeper/digikeeper-journal/internal/httpapi"
+	apicmd "github.com/digikeeper/digikeeper-journal/internal/httpapi/command"
+	apiqry "github.com/digikeeper/digikeeper-journal/internal/httpapi/query"
+	apisreg "github.com/digikeeper/digikeeper-journal/internal/httpapi/schemaregistry"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/candidatestore"
+	store "github.com/digikeeper/digikeeper-journal/internal/infrastructure/commandstore"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/index"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/querystore"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/sourcerepo"
+	"github.com/digikeeper/digikeeper-journal/pkg/chain"
+	"github.com/digikeeper/digikeeper-journal/pkg/healthz"
 )
 
 func main() {
@@ -50,7 +50,7 @@ func run() error {
 	slog.SetDefault(logger)
 
 	// Storage
-	dataPath := cfg.LogStorage.Path
+	dataPath := cfg.JournalStorage.Path
 	if err := os.MkdirAll(dataPath, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dataPath, err)
 	}
@@ -64,18 +64,18 @@ func run() error {
 	}
 	defer func() { _ = idx.Close() }()
 
-	logStore, err := store.NewStore(dataPath, idx)
+	journalStore, err := store.NewStore(dataPath, idx)
 	if err != nil {
 		return fmt.Errorf("init storage: %w", err)
 	}
-	defer func() { _ = logStore.Close() }()
+	defer func() { _ = journalStore.Close() }()
 
 	candidateStore, err := candidatestore.New(dataPath)
 	if err != nil {
 		return fmt.Errorf("init candidate storage: %w", err)
 	}
 
-	qryStore := querystore.NewStore(filepath.Join(dataPath, "dk_logs"), idx)
+	qryStore := querystore.NewStore(filepath.Join(dataPath, "dk_journal"), idx)
 
 	// Sources
 	srcRepo, err := sourcerepo.New()
@@ -84,12 +84,12 @@ func run() error {
 	}
 
 	// Services
-	cmdSvc := command.NewService(logStore, srcRepo, logger)
+	cmdSvc := command.NewService(journalStore, srcRepo, logger)
 	candidateSvc := domainCandidate.NewService(
-		candidateStore, logStore, logger,
+		candidateStore, journalStore, logger,
 	)
 	compactionSvc := domainCompaction.NewService(
-		logStore, candidateStore, idx, logger,
+		journalStore, candidateStore, idx, logger,
 	)
 	qrySvc := query.NewService(qryStore, qryStore, logger)
 
@@ -109,19 +109,19 @@ func run() error {
 	httpapi.InitHumaErrors()
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "list-logs",
+		OperationID:   "list-records",
 		Method:        http.MethodGet,
-		Path:          "/v1/logs",
-		Summary:       "Search log entries",
+		Path:          "/v1/journal",
+		Summary:       "Search records",
 		DefaultStatus: http.StatusOK,
-	}, qryHandler.QueryLogs)
+	}, qryHandler.QueryRecords)
 	huma.Register(api, huma.Operation{
-		OperationID:   "append-log",
+		OperationID:   "append-record",
 		Method:        http.MethodPost,
-		Path:          "/v1/logs",
-		Summary:       "Append a log entry",
+		Path:          "/v1/journal",
+		Summary:       "Append a record",
 		DefaultStatus: http.StatusCreated,
-	}, cmdHandler.AppendLog)
+	}, cmdHandler.AppendRecord)
 	huma.Register(api, huma.Operation{
 		OperationID:   "submit-candidate",
 		Method:        http.MethodPost,
@@ -147,28 +147,28 @@ func run() error {
 		OperationID:   "compact-partition",
 		Method:        http.MethodPost,
 		Path:          "/v1/compaction",
-		Summary:       "Compact applied candidates into a log partition",
+		Summary:       "Compact applied candidates into a record partition",
 		DefaultStatus: http.StatusOK,
 	}, compactionHandler.CompactPartition)
 	huma.Register(api, huma.Operation{
 		OperationID:   "list-schemas",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry",
-		Summary:       "List all entry type schemas",
+		Summary:       "List all record type schemas",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.ListSchemas)
 	huma.Register(api, huma.Operation{
 		OperationID:   "get-schema",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}",
-		Summary:       "Get the latest schema for an entry type",
+		Summary:       "Get the latest schema for a record type",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.GetSchema)
 	huma.Register(api, huma.Operation{
 		OperationID:   "get-schema-version",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}/{version}",
-		Summary:       "Get an immutable schema version for an entry type",
+		Summary:       "Get an immutable schema version for a record type",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.GetSchemaVersion)
 

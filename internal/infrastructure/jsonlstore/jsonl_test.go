@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
-func testEntries() []core.Entry {
-	return []core.Entry{
+func testRecords() []core.Record {
+	return []core.Record{
 		{ID: "1", Timestamp: march1At(10), Tags: []string{"work"}, Data: map[string]any{"note": "morning standup"}},
 		{ID: "2", Timestamp: march1At(14), Tags: []string{"work", "meeting"}, Data: map[string]any{"note": "sprint review"}},
 		{ID: "3", Timestamp: march1At(20), Tags: []string{"personal"}, Data: map[string]any{"note": "gym"}},
@@ -29,7 +29,7 @@ func setupWriter(t *testing.T) (*JSONLWriter, string) {
 	dir := t.TempDir()
 	w := NewJSONLWriter(dir, "logs")
 	var relPath string
-	for _, e := range testEntries() {
+	for _, e := range testRecords() {
 		rp, err := w.Append(e)
 		if err != nil {
 			t.Fatalf("append: %v", err)
@@ -59,7 +59,7 @@ func TestRead_Filters(t *testing.T) {
 			wantIDs: []string{"1", "2", "3"},
 		},
 		{
-			name:    "tag matches multiple entries",
+			name:    "tag matches multiple records",
 			opts:    []ReadOption{WithTags("work")},
 			wantIDs: []string{"1", "2"},
 		},
@@ -97,9 +97,9 @@ func TestRead_Filters(t *testing.T) {
 			w, relPath := setupWriter(t)
 			t.Cleanup(func() { closeWriter(t, w) })
 
-			entries, err := w.Read(relPath, tt.opts...)
+			records, err := w.Read(relPath, tt.opts...)
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantIDs, entryIDs(entries))
+			assert.Equal(t, tt.wantIDs, recordIDs(records))
 		})
 	}
 }
@@ -110,16 +110,16 @@ func TestRead_FileNotFound(t *testing.T) {
 	w := NewJSONLWriter(t.TempDir(), "logs")
 	t.Cleanup(func() { closeWriter(t, w) })
 
-	entries, err := w.Read("nonexistent/path.jsonl")
+	records, err := w.Read("nonexistent/path.jsonl")
 	require.NoError(t, err)
-	assert.Nil(t, entries)
+	assert.Nil(t, records)
 }
 
 func TestRead_EmptyFile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	relPath := "2026/2026-03-01_logs.jsonl"
+	relPath := "2026/2026-03-01_journal.jsonl"
 	fpath := filepath.Join(dir, relPath)
 	require.NoError(t, os.MkdirAll(filepath.Dir(fpath), 0o755))
 	require.NoError(t, os.WriteFile(fpath, nil, 0o644))
@@ -127,9 +127,9 @@ func TestRead_EmptyFile(t *testing.T) {
 	w := NewJSONLWriter(dir, "logs")
 	t.Cleanup(func() { closeWriter(t, w) })
 
-	entries, err := w.Read(relPath)
+	records, err := w.Read(relPath)
 	require.NoError(t, err)
-	assert.Empty(t, entries)
+	assert.Empty(t, records)
 }
 
 func TestMatchFilters_TagEdges(t *testing.T) {
@@ -167,10 +167,10 @@ func TestMatchFilters_TagEdges(t *testing.T) {
 	}
 }
 
-func entryIDs(entries []core.Entry) []string {
-	ids := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		ids = append(ids, entry.ID)
+func recordIDs(records []core.Record) []string {
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		ids = append(ids, record.ID)
 	}
 	return ids
 }

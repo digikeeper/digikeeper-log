@@ -3,42 +3,42 @@ package command
 import (
 	"time"
 
-	commandmodel "github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	commandmodel "github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
-type EntryResource struct {
+type RecordResource struct {
 	id    string
-	attrs EntryResourceAttrs
+	attrs RecordResourceAttrs
 }
 
-type EntryResourceMeta struct {
+type RecordResourceMeta struct {
 	SchemaVersion int    `json:"schema_version"`
 	Revision      int    `json:"revision"`
 	Source        string `json:"source"`
 }
 
-type EntryResourceAttrs struct {
+type RecordResourceAttrs struct {
 	RequestID string    `json:"request_id"`
 	CreatedAt time.Time `json:"created_at"`
 	Timestamp time.Time `json:"timestamp"`
 
-	Meta EntryResourceMeta `json:"meta"`
+	Meta RecordResourceMeta `json:"meta"`
 
 	Type string         `json:"type"`
 	Tags []string       `json:"tags"`
 	Data map[string]any `json:"data"`
 }
 
-func (r EntryResource) GetID() string      { return r.id }
-func (r EntryResource) GetAttributes() any { return r.attrs }
+func (r RecordResource) GetID() string      { return r.id }
+func (r RecordResource) GetAttributes() any { return r.attrs }
 
-func NewEntryResource(e core.Entry, resolve func(int) string) EntryResource {
-	return EntryResource{
+func NewRecordResource(e core.Record, resolve func(int) string) RecordResource {
+	return RecordResource{
 		id: e.ID,
-		attrs: EntryResourceAttrs{
+		attrs: RecordResourceAttrs{
 			Type: e.Type,
-			Meta: EntryResourceMeta{
+			Meta: RecordResourceMeta{
 				SchemaVersion: e.Meta.SchemaVersion,
 				Revision:      e.Meta.Revision,
 				Source:        resolve(e.Meta.Src),
@@ -58,9 +58,9 @@ type CandidateResource struct {
 }
 
 type CandidateResourceAttrs struct {
-	EntryID           string                   `json:"entry_id"`
+	RecordID          string                   `json:"record_id"`
 	OriginalTimestamp time.Time                `json:"original_timestamp"`
-	Entry             core.Entry               `json:"entry"`
+	Record            core.Record              `json:"record"`
 	CreatedAt         time.Time                `json:"created_at"`
 	Action            core.CandidateResolution `json:"action,omitempty"`
 	Reason            string                   `json:"reason,omitempty"`
@@ -77,9 +77,9 @@ func NewCandidateResource(c commandmodel.Candidate) CandidateResource {
 	return CandidateResource{
 		id: c.ID,
 		attrs: CandidateResourceAttrs{
-			EntryID:           c.EntryID,
+			RecordID:          c.RecordID,
 			OriginalTimestamp: c.OriginalTimestamp,
-			Entry:             c.Entry,
+			Record:            c.Record,
 			CreatedAt:         c.CreatedAt,
 			Action:            c.Action,
 			Reason:            c.Reason,

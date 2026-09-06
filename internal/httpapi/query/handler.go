@@ -8,9 +8,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	domainQuery "github.com/gitrus/digikeeper-log/internal/domain/query"
-	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
-	"github.com/gitrus/digikeeper-log/internal/httpapi"
+	domainQuery "github.com/digikeeper/digikeeper-journal/internal/domain/query"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/query/model"
+	"github.com/digikeeper/digikeeper-journal/internal/httpapi"
 )
 
 type Handler struct {
@@ -24,7 +24,7 @@ func NewHandler(svc *domainQuery.Service, resolveSrc func(int) string) *Handler 
 
 type QueryInput struct {
 	Tags  []string  `query:"tag" doc:"Filter by tag (OR, repeatable)"`
-	Types []string  `query:"type" doc:"Filter by entry type (OR, repeatable)"`
+	Types []string  `query:"type" doc:"Filter by record type (OR, repeatable)"`
 	From  time.Time `query:"from" doc:"Start time (RFC3339)"`
 	To    time.Time `query:"to" doc:"End time (RFC3339)"`
 	Limit int       `query:"limit" minimum:"1" maximum:"1000" default:"100" doc:"Result limit"`
@@ -71,7 +71,7 @@ type QueryOutput struct {
 	}
 }
 
-func (h *Handler) QueryLogs(ctx context.Context, input *QueryInput) (*QueryOutput, error) {
+func (h *Handler) QueryRecords(ctx context.Context, input *QueryInput) (*QueryOutput, error) {
 	params := model.SearchParams{
 		Tags:  input.Tags,
 		Types: input.Types,
@@ -80,7 +80,7 @@ func (h *Handler) QueryLogs(ctx context.Context, input *QueryInput) (*QueryOutpu
 		Limit: input.Limit,
 	}
 
-	results, err := h.svc.SearchEntries(ctx, params)
+	results, err := h.svc.SearchRecords(ctx, params)
 	if err != nil {
 		slog.Default().ErrorContext(ctx, "search failed", slog.Any("error", err))
 		return nil, huma.Error500InternalServerError("Query Failure")
@@ -90,7 +90,7 @@ func (h *Handler) QueryLogs(ctx context.Context, input *QueryInput) (*QueryOutpu
 	out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
 	out.Body.Data = make([]httpapi.ResourceEnvelope, len(results))
 	for i, e := range results {
-		out.Body.Data[i] = httpapi.ToEnvelope(NewEntryResource(e, h.resolveSrc))
+		out.Body.Data[i] = httpapi.ToEnvelope(NewRecordResource(e, h.resolveSrc))
 	}
 	return out, nil
 }

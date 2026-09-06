@@ -3,13 +3,13 @@ package candidate
 import (
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
 type SubmitRequest struct {
-	//  ID of the original entry.
-	EntryID string `json:"entry_id"`
-	// OriginalTimestamp is the Timestamp of the original entry.
+	//  ID of the original record.
+	RecordID string `json:"record_id"`
+	// OriginalTimestamp is the Timestamp of the original record.
 	OriginalTimestamp time.Time `json:"original_timestamp"`
 
 	Type string         `json:"type"`

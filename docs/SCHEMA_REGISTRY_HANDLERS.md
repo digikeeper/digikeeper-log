@@ -2,13 +2,13 @@
 
 ## Description
 
-Schema registry handlers expose supported log entry schemas over HTTP.
+Schema registry handlers expose supported record schemas over HTTP.
 They live in `internal/httpapi/schemaregistry` and are wired from `cmd/server`.
 
 Endpoints:
 
 - `GET /v1/registry` returns schema type summaries with their latest and available versions.
-- `GET /v1/registry/{type}` returns the latest schema for an entry type.
+- `GET /v1/registry/{type}` returns the latest schema for an record type.
 - `GET /v1/registry/{type}/{version}` returns one immutable schema version.
 
 Schemas are JSON files in `internal/httpapi/schemaregistry/schemas`. The handler embeds
@@ -27,19 +27,19 @@ schemas/note_v2.json  → type: note, version: 2
 A schema identity is `(type, version)`. Published schema files are immutable == add a new
 file for a changed schema instead of modifying an existing version.
 
-An entry persists its schema version in `m.sv` (`m.v` is a legacy read-only alias for
+An record persists its schema version in `m.sv` (`m.v` is a legacy read-only alias for
 pre-existing JSONL entries). This identifies the exact registry schema needed to
-interpret that entry; it never means "latest".
+interpret that record; it never means "latest".
 
-Entry metadata also contains `m.r`, its logical revision:
+Record metadata also contains `m.r`, its logical revision:
 
-- a new entry starts at revision `1`;
+- a new record starts at revision `1`;
 - applying an approved candidate increments the revision;
 - a storage-only compaction rewrite does not increment it.
 
 ## Why It Exists
 
-Clients need a stable way to discover supported entry types and the schema version used
+Clients need a stable way to discover supported record types and the schema version used
 by persisted entries. Serving schemas from the running service keeps clients aligned with
 the deployed version instead of relying only on external documentation.
 

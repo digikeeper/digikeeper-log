@@ -2,8 +2,8 @@
 set -e
 
 # Create data directory if it doesn't exist
-if [ -n "$LOG_STORAGE_PATH" ]; then
-    mkdir -p "$LOG_STORAGE_PATH"
+if [ -n "$JOURNAL_STORAGE_PATH" ]; then
+    mkdir -p "$JOURNAL_STORAGE_PATH"
 fi
 
 case "${1:-server}" in

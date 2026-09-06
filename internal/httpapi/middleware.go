@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
 )
 
 // Recovery returns middleware that catches panics, logs them with slog,

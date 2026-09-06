@@ -14,20 +14,20 @@ import (
 	sloghttp "github.com/samber/slog-http"
 	"github.com/stretchr/testify/require"
 
-	command "github.com/gitrus/digikeeper-log/internal/domain/command/append"
-	domainCandidate "github.com/gitrus/digikeeper-log/internal/domain/command/candidate"
-	domainCompaction "github.com/gitrus/digikeeper-log/internal/domain/command/compaction"
-	"github.com/gitrus/digikeeper-log/internal/domain/query"
-	"github.com/gitrus/digikeeper-log/internal/httpapi"
-	apicmd "github.com/gitrus/digikeeper-log/internal/httpapi/command"
-	apiqry "github.com/gitrus/digikeeper-log/internal/httpapi/query"
-	apisreg "github.com/gitrus/digikeeper-log/internal/httpapi/schemaregistry"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/candidatestore"
-	store "github.com/gitrus/digikeeper-log/internal/infrastructure/commandstore"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/querystore"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/sourcerepo"
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
+	command "github.com/digikeeper/digikeeper-journal/internal/domain/command/append"
+	domainCandidate "github.com/digikeeper/digikeeper-journal/internal/domain/command/candidate"
+	domainCompaction "github.com/digikeeper/digikeeper-journal/internal/domain/command/compaction"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/query"
+	"github.com/digikeeper/digikeeper-journal/internal/httpapi"
+	apicmd "github.com/digikeeper/digikeeper-journal/internal/httpapi/command"
+	apiqry "github.com/digikeeper/digikeeper-journal/internal/httpapi/query"
+	apisreg "github.com/digikeeper/digikeeper-journal/internal/httpapi/schemaregistry"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/candidatestore"
+	store "github.com/digikeeper/digikeeper-journal/internal/infrastructure/commandstore"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/index"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/querystore"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/sourcerepo"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
 )
 
 // --- test-local JSON:API response types ---
@@ -48,12 +48,12 @@ type responseMeta struct {
 
 type resourceObject struct {
 	ID         string     `json:"id"`
-	Attributes entryAttrs `json:"attributes"`
+	Attributes recordAttrs `json:"attributes"`
 }
 
-type entryAttrs struct {
+type recordAttrs struct {
 	Type      string         `json:"type"`
-	Meta      entryMeta      `json:"meta"`
+	Meta      recordMeta      `json:"meta"`
 	RequestID string         `json:"request_id"`
 	CreatedAt string         `json:"created_at"`
 	Timestamp string         `json:"timestamp"`
@@ -61,7 +61,7 @@ type entryAttrs struct {
 	Data      map[string]any `json:"data"`
 }
 
-type entryMeta struct {
+type recordMeta struct {
 	SchemaVersion int    `json:"schema_version"`
 	Revision      int    `json:"revision"`
 	Source        string `json:"source"`
@@ -83,9 +83,9 @@ type candidateResourceObject struct {
 }
 
 type candidateAttrs struct {
-	EntryID           string         `json:"entry_id"`
+	RecordID           string         `json:"record_id"`
 	OriginalTimestamp string         `json:"original_timestamp"`
-	Entry             candidateEntry `json:"entry"`
+	Record            candidateRecord `json:"record"`
 	CreatedAt         string         `json:"created_at"`
 	Action            string         `json:"action"`
 	ResolvedBy        string         `json:"resolved_by"`
@@ -93,7 +93,7 @@ type candidateAttrs struct {
 	ClientID          string         `json:"client_id"`
 }
 
-type candidateEntry struct {
+type candidateRecord struct {
 	ID   string         `json:"id"`
 	Type string         `json:"type"`
 	Tags []string       `json:"tags"`
@@ -116,7 +116,7 @@ func setupTestServer(t *testing.T) *httptest.Server {
 	candidateStore, err := candidatestore.New(dir)
 	require.NoError(t, err, "init candidate store")
 
-	qryStore := querystore.NewStore(filepath.Join(dir, "dk_logs"), idx)
+	qryStore := querystore.NewStore(filepath.Join(dir, "dk_journal"), idx)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
@@ -143,17 +143,17 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		OperationID:   "list-logs",
 		Method:        http.MethodGet,
 		Path:          "/v1/logs",
-		Summary:       "Search log entries",
+		Summary:       "Search records",
 		DefaultStatus: http.StatusOK,
-	}, qryHandler.QueryLogs)
+	}, qryHandler.QueryRecords)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "append-log",
 		Method:        http.MethodPost,
 		Path:          "/v1/logs",
-		Summary:       "Append a log entry",
+		Summary:       "Append a record",
 		DefaultStatus: http.StatusCreated,
-	}, cmdHandler.AppendLog)
+	}, cmdHandler.AppendRecord)
 	huma.Register(api, huma.Operation{
 		OperationID:   "submit-candidate",
 		Method:        http.MethodPost,
@@ -186,21 +186,21 @@ func setupTestServer(t *testing.T) *httptest.Server {
 		OperationID:   "list-schemas",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry",
-		Summary:       "List all entry type schemas",
+		Summary:       "List all record type schemas",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.ListSchemas)
 	huma.Register(api, huma.Operation{
 		OperationID:   "get-schema",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}",
-		Summary:       "Get the latest schema for an entry type",
+		Summary:       "Get the latest schema for a record type",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.GetSchema)
 	huma.Register(api, huma.Operation{
 		OperationID:   "get-schema-version",
 		Method:        http.MethodGet,
 		Path:          "/v1/registry/{type}/{version}",
-		Summary:       "Get an immutable schema version for an entry type",
+		Summary:       "Get an immutable schema version for a record type",
 		DefaultStatus: http.StatusOK,
 	}, sregHandler.GetSchemaVersion)
 
@@ -257,7 +257,7 @@ func closeResponseBody(t *testing.T, resp *http.Response) {
 	}
 }
 
-func appendTestEntry(t *testing.T, srv *httptest.Server) string {
+func appendTestRecord(t *testing.T, srv *httptest.Server) string {
 	t.Helper()
 	resp := postJSON(t, srv.URL+"/v1/logs",
 		`{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"original"}}`)
@@ -268,9 +268,9 @@ func appendTestEntry(t *testing.T, srv *httptest.Server) string {
 	return appended.Data.ID
 }
 
-func submitTestCandidate(t *testing.T, srv *httptest.Server, entryID, note string, tags []string) string {
+func submitTestCandidate(t *testing.T, srv *httptest.Server, recordID, note string, tags []string) string {
 	t.Helper()
-	body := `{"entry_id":"` + entryID + `","original_timestamp":"2026-03-08T10:00:00Z","type":"note","tags":["` +
+	body := `{"record_id":"` + recordID + `","original_timestamp":"2026-03-08T10:00:00Z","type":"note","tags":["` +
 		strings.Join(tags, `","`) + `"],"data":{"note":"` + note + `"}}`
 	resp := postJSON(t, srv.URL+"/v1/candidates", body)
 	defer closeResponseBody(t, resp)

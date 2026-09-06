@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/query/model"
 )
 
-// Collision represents a log entry that has unresolved candidates.
+// Collision represents a record that has unresolved candidates.
 type Collision struct {
-	EntryID    string            `json:"entry_id"`
+	RecordID   string            `json:"record_id"`
 	Partition  core.Partition    `json:"partition"`
 	Candidates []model.Candidate `json:"candidates"`
 }
 
-// ListCollisions returns log entries that have unresolved candidates in the
-// given partition. Each collision includes the entry ID and its pending
+// ListCollisions returns records that have unresolved candidates in the
+// given partition. Each collision includes the record ID and its pending
 // candidates.
 func (s *Service) ListCollisions(
 	ctx context.Context,
@@ -32,16 +32,16 @@ func (s *Service) ListCollisions(
 		return nil, nil
 	}
 
-	// Group candidates by the entry they target.
-	byEntry := make(map[string][]model.Candidate)
+	// Group candidates by the record they target.
+	byRecord := make(map[string][]model.Candidate)
 	for _, c := range pending {
-		byEntry[c.EntryID] = append(byEntry[c.EntryID], c)
+		byRecord[c.RecordID] = append(byRecord[c.RecordID], c)
 	}
 
-	collisions := make([]Collision, 0, len(byEntry))
-	for entryID, candidates := range byEntry {
+	collisions := make([]Collision, 0, len(byRecord))
+	for recordID, candidates := range byRecord {
 		collisions = append(collisions, Collision{
-			EntryID:    entryID,
+			RecordID:   recordID,
 			Partition:  partition,
 			Candidates: candidates,
 		})
@@ -49,7 +49,7 @@ func (s *Service) ListCollisions(
 
 	s.logger.InfoContext(ctx, "listed collisions",
 		slog.String("partition", partition.String()),
-		slog.Int("entries_with_candidates", len(collisions)),
+		slog.Int("records_with_candidates", len(collisions)),
 		slog.Int("total_candidates", len(pending)),
 	)
 

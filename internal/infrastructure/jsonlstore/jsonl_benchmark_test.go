@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
 var (
 	benchBoolSink  bool
 	benchBytesSink []byte
-	benchEntrySink core.Entry
+	benchRecordSink core.Record
 )
 
 type benchProfile struct {
@@ -25,7 +25,7 @@ type benchProfile struct {
 }
 
 type benchData struct {
-	entry          core.Entry
+	record          core.Record
 	line           []byte
 	filtersMatch   ReadFilters
 	filtersNoMatch ReadFilters
@@ -91,14 +91,14 @@ func BenchmarkJSONLFilter(b *testing.B) {
 	})
 }
 
-func BenchmarkEntryMarshal(b *testing.B) {
+func BenchmarkRecordMarshal(b *testing.B) {
 	data := buildBenchData(b)
 
 	b.ReportAllocs()
 
 	b.Run("jsonv2", func(b *testing.B) {
 		for b.Loop() {
-			out, err := jsonv2.Marshal(data.entry)
+			out, err := jsonv2.Marshal(data.record)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -108,7 +108,7 @@ func BenchmarkEntryMarshal(b *testing.B) {
 
 	b.Run("stdjson", func(b *testing.B) {
 		for b.Loop() {
-			out, err := stdjson.Marshal(data.entry)
+			out, err := stdjson.Marshal(data.record)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -117,28 +117,28 @@ func BenchmarkEntryMarshal(b *testing.B) {
 	})
 }
 
-func BenchmarkEntryUnmarshal(b *testing.B) {
+func BenchmarkRecordUnmarshal(b *testing.B) {
 	data := buildBenchData(b)
 
 	b.ReportAllocs()
 
 	b.Run("jsonv2", func(b *testing.B) {
 		for b.Loop() {
-			var out core.Entry
+			var out core.Record
 			if err := jsonv2.Unmarshal(data.line, &out); err != nil {
 				b.Fatal(err)
 			}
-			benchEntrySink = out
+			benchRecordSink = out
 		}
 	})
 
 	b.Run("stdjson", func(b *testing.B) {
 		for b.Loop() {
-			var out core.Entry
+			var out core.Record
 			if err := stdjson.Unmarshal(data.line, &out); err != nil {
 				b.Fatal(err)
 			}
-			benchEntrySink = out
+			benchRecordSink = out
 		}
 	})
 }
@@ -155,9 +155,9 @@ func buildBenchData(b *testing.B) benchData {
 	}
 
 	payload := strings.Repeat("x", profile.dataBytes)
-	entry := core.Entry{
-		ID: "bench-entry",
-		Meta: core.EntryMeta{
+	record := core.Record{
+		ID: "bench-record",
+		Meta: core.RecordMeta{
 			SchemaVersion: 1,
 			Src:           1,
 		},
@@ -176,7 +176,7 @@ func buildBenchData(b *testing.B) benchData {
 		},
 	}
 
-	line, err := jsonv2.Marshal(entry)
+	line, err := jsonv2.Marshal(record)
 	if err != nil {
 		b.Fatalf("jsonv2 marshal bench data: %v", err)
 	}
@@ -186,7 +186,7 @@ func buildBenchData(b *testing.B) benchData {
 	to := ts.Add(1 * time.Hour)
 
 	return benchData{
-		entry: entry,
+		record: record,
 		line:  line,
 		filtersMatch: ReadFilters{
 			From: from,
@@ -272,7 +272,7 @@ func matchFiltersBy2FieldUnmarshalStdJSON(line []byte, f *ReadFilters) bool {
 }
 
 func matchFiltersByFullUnmarshalJSONV2(line []byte, f *ReadFilters) bool {
-	var e core.Entry
+	var e core.Record
 	if err := jsonv2.Unmarshal(line, &e); err != nil {
 		return false
 	}
@@ -280,7 +280,7 @@ func matchFiltersByFullUnmarshalJSONV2(line []byte, f *ReadFilters) bool {
 }
 
 func matchFiltersByFullUnmarshalStdJSON(line []byte, f *ReadFilters) bool {
-	var e core.Entry
+	var e core.Record
 	if err := stdjson.Unmarshal(line, &e); err != nil {
 		return false
 	}

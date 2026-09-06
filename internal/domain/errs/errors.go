@@ -27,13 +27,13 @@ var (
 
 // Specific business errors. Each wraps its category so both are detectable via errors.Is.
 var (
-	ErrEntryNotFound       = wrap("entry not found", ErrNotFound)
+	ErrRecordNotFound      = wrap("record not found", ErrNotFound)
 	ErrCandidateNotPending = wrap("candidate not pending", ErrNotFound)
 
 	ErrUnknownAction = wrap("unknown resolution action", ErrInvalidInput)
 
 	ErrIncompleteResolution = wrap("all pending candidates must be resolved at once", ErrCommonDomain)
-	ErrMultipleApply        = wrap("at most one candidate per entry may be applied", ErrCommonDomain)
+	ErrMultipleApply        = wrap("at most one candidate per record may be applied", ErrCommonDomain)
 )
 
 // Infrastructure errors.

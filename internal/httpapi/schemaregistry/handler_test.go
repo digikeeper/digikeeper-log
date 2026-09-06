@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gitrus/digikeeper-log/internal/httpapi"
-	apisreg "github.com/gitrus/digikeeper-log/internal/httpapi/schemaregistry"
+	"github.com/digikeeper/digikeeper-journal/internal/httpapi"
+	apisreg "github.com/digikeeper/digikeeper-journal/internal/httpapi/schemaregistry"
 )
 
 func setupRegistryServer(t *testing.T) *httptest.Server {

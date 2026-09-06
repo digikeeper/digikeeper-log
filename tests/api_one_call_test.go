@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
 )
 
-func TestPostEntry(t *testing.T) {
+func TestPostRecord(t *testing.T) {
 	srv := setupTestServer(t)
 
 	body := `{"type":"note","timestamp":"2026-03-08T10:00:00Z","tags":["work"],"data":{"note":"test"}}`
@@ -56,11 +56,11 @@ func TestListPendingCandidatesValidationErrors(t *testing.T) {
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 }
 
-func TestSubmitCandidateForMissingEntry(t *testing.T) {
+func TestSubmitCandidateForMissingRecord(t *testing.T) {
 	srv := setupTestServer(t)
 
 	resp := postJSON(t, srv.URL+"/v1/candidates",
-		`{"entry_id":"missing","original_timestamp":"2026-03-08T10:00:00Z","type":"note","tags":["corrected"],"data":{"note":"corrected"}}`)
+		`{"record_id":"missing","original_timestamp":"2026-03-08T10:00:00Z","type":"note","tags":["corrected"],"data":{"note":"corrected"}}`)
 	defer closeResponseBody(t, resp)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

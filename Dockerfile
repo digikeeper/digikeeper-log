@@ -1,5 +1,5 @@
 # --- Build stage ---
-FROM golang:1.26-bookworm AS build
+FROM golang:1.27-bookworm AS build
 
 WORKDIR /src
 
@@ -7,7 +7,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN GOEXPERIMENT=jsonv2 go build -o /out/server ./cmd/server
+RUN go build -o /out/server ./cmd/server
 
 # --- Runtime stage ---
 FROM debian:bookworm-slim
@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /out/server /usr/local/bin/server
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Matches the default LOG_STORAGE_PATH configured by the application.
+# Matches the default JOURNAL_STORAGE_PATH configured by the application.
 VOLUME ["/var/lib/digikeeper"]
 
 USER app:app

@@ -8,9 +8,9 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	sloghttp "github.com/samber/slog-http"
 
-	domainAppend "github.com/gitrus/digikeeper-log/internal/domain/command/append"
-	"github.com/gitrus/digikeeper-log/internal/domain/errs"
-	"github.com/gitrus/digikeeper-log/internal/httpapi"
+	domainAppend "github.com/digikeeper/digikeeper-journal/internal/domain/command/append"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/errs"
+	"github.com/digikeeper/digikeeper-journal/internal/httpapi"
 )
 
 type Handler struct {
@@ -25,10 +25,10 @@ func NewHandler(svc *domainAppend.Service, resolveSrc func(int) string) *Handler
 type AppendInput struct {
 	ClientID string `header:"X-Client-Id" doc:"Client identifier for source tracking"`
 	Body     struct {
-		Type      string         `json:"type" doc:"Entry type"`
+		Type      string         `json:"type" doc:"Record type"`
 		Timestamp time.Time      `json:"timestamp" required:"true" doc:"Event timestamp"`
-		Tags      []string       `json:"tags" doc:"Entry tags"`
-		Data      map[string]any `json:"data" doc:"Entry data"`
+		Tags      []string       `json:"tags" doc:"Record tags"`
+		Data      map[string]any `json:"data" doc:"Record data"`
 	}
 }
 
@@ -55,7 +55,7 @@ type AppendOutput struct {
 	}
 }
 
-func (h *Handler) AppendLog(ctx context.Context, input *AppendInput) (*AppendOutput, error) {
+func (h *Handler) AppendRecord(ctx context.Context, input *AppendInput) (*AppendOutput, error) {
 	req := domainAppend.AppendRequest{
 		Type:      input.Body.Type,
 		Timestamp: input.Body.Timestamp,
@@ -65,20 +65,20 @@ func (h *Handler) AppendLog(ctx context.Context, input *AppendInput) (*AppendOut
 	}
 
 	requestID := sloghttp.GetRequestIDFromContext(ctx)
-	entry, err := h.svc.AppendEntry(ctx, req, requestID)
+	record, err := h.svc.AppendRecord(ctx, req, requestID)
 	switch {
 	case err == nil:
 		out := &AppendOutput{}
 		out.Status = 201
 		out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
-		out.Body.Data = httpapi.ToEnvelope(NewEntryResource(entry, h.resolveSrc))
+		out.Body.Data = httpapi.ToEnvelope(NewRecordResource(record, h.resolveSrc))
 		return out, nil
 
 	case errors.Is(err, errs.ErrIndexFailed):
 		out := &AppendOutput{}
 		out.Status = 202
 		out.Body.Meta = httpapi.ResponseMeta{Type: "logs"}
-		out.Body.Data = httpapi.ToEnvelope(NewEntryResource(entry, h.resolveSrc))
+		out.Body.Data = httpapi.ToEnvelope(NewRecordResource(record, h.resolveSrc))
 		return out, nil
 
 	default:

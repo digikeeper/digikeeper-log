@@ -4,15 +4,15 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
-// LogStorage reads, rewrites, and locks log partitions.
-type LogStorage interface {
+// JournalStorage reads, rewrites, and locks journal partitions.
+type JournalStorage interface {
 	ExclusiveLock(ctx context.Context, partition core.Partition) (release func(), err error)
-	ReadPartition(ctx context.Context, partition core.Partition) ([]core.Entry, error)
-	ReplacePartition(ctx context.Context, partition core.Partition, entries []core.Entry) error
+	ReadPartition(ctx context.Context, partition core.Partition) ([]core.Record, error)
+	ReplacePartition(ctx context.Context, partition core.Partition, records []core.Record) error
 }
 
 // CandidateStorage reads, cleans up, audits, and locks candidate partitions.
@@ -28,27 +28,27 @@ type CandidateStorage interface {
 
 // IndexRebuilder updates the file-level index after a partition rewrite.
 type IndexRebuilder interface {
-	RebuildPartition(ctx context.Context, partition core.Partition, entries []core.Entry) error
+	RebuildPartition(ctx context.Context, partition core.Partition, records []core.Record) error
 }
 
-// Service drains applied candidates by rewriting log partitions.
+// Service drains applied candidates by rewriting journal partitions.
 type Service struct {
-	logs       LogStorage
-	candidates CandidateStorage
-	index      IndexRebuilder
-	logger     *slog.Logger
+	journalStorage JournalStorage
+	candidates     CandidateStorage
+	index          IndexRebuilder
+	logger         *slog.Logger
 }
 
 func NewService(
-	logs LogStorage,
+	journalStorage JournalStorage,
 	candidates CandidateStorage,
 	index IndexRebuilder,
 	logger *slog.Logger,
 ) *Service {
 	return &Service{
-		logs:       logs,
-		candidates: candidates,
-		index:      index,
-		logger:     logger,
+		journalStorage: journalStorage,
+		candidates:     candidates,
+		index:          index,
+		logger:         logger,
 	}
 }

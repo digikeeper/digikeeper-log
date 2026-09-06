@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
 // ListPending returns the candidate batch currently awaiting resolution.

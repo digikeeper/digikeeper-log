@@ -8,7 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/errs"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/errs"
 )
 
 type jsonAPIError struct {

@@ -5,9 +5,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	domainCompaction "github.com/gitrus/digikeeper-log/internal/domain/command/compaction"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/httpapi"
+	domainCompaction "github.com/digikeeper/digikeeper-journal/internal/domain/command/compaction"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/httpapi"
 )
 
 type CompactionHandler struct {

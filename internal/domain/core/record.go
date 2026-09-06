@@ -5,15 +5,15 @@ import (
 	"time"
 )
 
-type EntryMeta struct {
+type RecordMeta struct {
 	SchemaVersion int `json:"sv"`
 	Revision      int `json:"r"`
 	Src           int `json:"s"`
 }
 
-// UnmarshalJSON accepts the former "v" alias so existing JSONL entries remain
+// UnmarshalJSON accepts the former "v" alias so existing JSONL records remain
 // readable. New writes use the unambiguous "sv" alias.
-func (m *EntryMeta) UnmarshalJSON(data []byte) error {
+func (m *RecordMeta) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		SchemaVersion       *int `json:"sv"`
 		LegacySchemaVersion *int `json:"v"`
@@ -37,11 +37,11 @@ func (m *EntryMeta) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type Entry struct {
+type Record struct {
 	ID        string         `json:"id"`
 	RequestID string         `json:"request_id"`
 	CreatedAt time.Time      `json:"created_at"`
-	Meta      EntryMeta      `json:"m"`
+	Meta      RecordMeta     `json:"m"`
 	Timestamp time.Time      `json:"ts"`
 	Type      string         `json:"type"`
 	Tags      []string       `json:"tags"`

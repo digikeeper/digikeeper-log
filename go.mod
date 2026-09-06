@@ -1,6 +1,6 @@
-module github.com/gitrus/digikeeper-log
+module github.com/digikeeper/digikeeper-journal
 
-go 1.26
+go 1.27
 
 require (
 	github.com/danielgtaylor/huma/v2 v2.38.0

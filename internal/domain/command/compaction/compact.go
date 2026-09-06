@@ -6,16 +6,16 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
-// Compact drains applied candidates for a partition by rewriting the log.
+// Compact drains applied candidates for a partition by rewriting the records.
 //
 //  1. Read applied/{partition} — if empty, nothing to do.
-//  2. Acquire exclusive entry and candidate partition locks.
-//  3. Read all entries from logs/{partition}.
-//  4. Substitute: replace matching entries; append unmatched applied candidates.
+//  2. Acquire exclusive record and candidate partition locks.
+//  3. Read all records from journal/{partition}.
+//  4. Substitute: replace matching records; append unmatched applied candidates.
 //  5. Atomic rewrite (write-temp → fsync → rename via renameio).
 //  6. Delete compacted candidates from applied/.
 //  7. Rebuild index for the rewritten partition.
@@ -37,12 +37,12 @@ func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 		return nil
 	}
 
-	// 2. Acquire exclusive locks on entry and candidate partitions.
-	releaseEntry, err := s.logs.ExclusiveLock(ctx, req.Partition)
+	// 2. Acquire exclusive locks on record and candidate partitions.
+	releaseRecord, err := s.journalStorage.ExclusiveLock(ctx, req.Partition)
 	if err != nil {
-		return fmt.Errorf("compact: lock entry partition %s: %w", req.Partition, err)
+		return fmt.Errorf("compact: lock record partition %s: %w", req.Partition, err)
 	}
-	defer releaseEntry()
+	defer releaseRecord()
 
 	releaseCandidate, err := s.candidates.ExclusiveLock(ctx, req.Partition)
 	if err != nil {
@@ -50,17 +50,17 @@ func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 	}
 	defer releaseCandidate()
 
-	// 3. Read all entries.
-	entries, err := s.logs.ReadPartition(ctx, req.Partition)
+	// 3. Read all records.
+	records, err := s.journalStorage.ReadPartition(ctx, req.Partition)
 	if err != nil {
 		return fmt.Errorf("compact: read partition %s: %w", req.Partition, err)
 	}
 
 	// 4. Substitute.
-	rewritten, appliedCount := s.applySubstitutions(entries, applied)
+	rewritten, appliedCount := s.applySubstitutions(records, applied)
 
 	// 5. Atomic rewrite.
-	if err := s.logs.ReplacePartition(ctx, req.Partition, rewritten); err != nil {
+	if err := s.journalStorage.ReplacePartition(ctx, req.Partition, rewritten); err != nil {
 		return fmt.Errorf("compact: rewrite partition %s: %w", req.Partition, err)
 	}
 
@@ -97,68 +97,68 @@ func (s *Service) Compact(ctx context.Context, req CompactRequest) error {
 	s.logger.InfoContext(ctx, "compaction completed",
 		slog.String("partition", req.Partition.String()),
 		slog.Int("applied", appliedCount),
-		slog.Int("total_entries", len(rewritten)),
+		slog.Int("total_records", len(rewritten)),
 	)
 
 	return nil
 }
 
-// applySubstitutions replaces entries whose ID matches an applied candidate and
-// appends applied candidates with no matching entry to the end of the partition.
+// applySubstitutions replaces records whose ID matches an applied candidate and
+// appends applied candidates with no matching record to the end of the partition.
 func (s *Service) applySubstitutions(
-	entries []core.Entry,
+	records []core.Record,
 	applied []model.Candidate,
-) ([]core.Entry, int) {
-	candidatesByEntryID := make(map[string]model.Candidate, len(applied))
+) ([]core.Record, int) {
+	candidatesByRecordID := make(map[string]model.Candidate, len(applied))
 	for _, candidate := range applied {
-		candidatesByEntryID[candidate.EntryID] = candidate
+		candidatesByRecordID[candidate.RecordID] = candidate
 	}
 
 	appliedCount := 0
 	seen := make(map[string]struct{}, len(applied))
-	result := make([]core.Entry, 0, len(entries)+len(applied))
-	for _, entry := range entries {
-		candidate, ok := candidatesByEntryID[entry.ID]
+	result := make([]core.Record, 0, len(records)+len(applied))
+	for _, record := range records {
+		candidate, ok := candidatesByRecordID[record.ID]
 		if !ok {
-			result = append(result, entry)
+			result = append(result, record)
 			continue
 		}
 
-		replacement, applied := s.applyCandidate(entry, candidate)
+		replacement, applied := s.applyCandidate(record, candidate)
 		result = append(result, replacement)
-		seen[entry.ID] = struct{}{}
+		seen[record.ID] = struct{}{}
 		if applied {
 			appliedCount++
 		}
 	}
 
 	for _, candidate := range applied {
-		if _, ok := seen[candidate.EntryID]; ok {
+		if _, ok := seen[candidate.RecordID]; ok {
 			continue
 		}
-		replacement := candidate.Entry
+		replacement := candidate.Record
 		replacement.Meta.Revision = nextRevision(replacement.Meta.Revision)
 		result = append(result, replacement)
-		seen[candidate.EntryID] = struct{}{}
+		seen[candidate.RecordID] = struct{}{}
 		appliedCount++
 	}
 
 	return result, appliedCount
 }
 
-func (s *Service) applyCandidate(current core.Entry, candidate model.Candidate) (core.Entry, bool) {
-	replacement := candidate.Entry
+func (s *Service) applyCandidate(current core.Record, candidate model.Candidate) (core.Record, bool) {
+	replacement := candidate.Record
 	currentRevision := normalizedRevision(current.Meta.Revision)
 	candidateRevision := normalizedRevision(replacement.Meta.Revision)
 
 	// A candidate is a compare-and-swap operation over the revision it copied
 	// at submission. It is stale after a successful rewrite whose applied-file
 	// cleanup failed, and it is invalid if it was somehow created from a future
-	// revision. In both cases, preserve the current entry.
+	// revision. In both cases, preserve the current record.
 	if candidateRevision != currentRevision {
-		s.logger.Warn("skipping candidate with mismatched entry revision",
+		s.logger.Warn("skipping candidate with mismatched record revision",
 			slog.String("candidate_id", candidate.ID),
-			slog.String("entry_id", current.ID),
+			slog.String("record_id", current.ID),
 			slog.Int("candidate_revision", candidateRevision),
 			slog.Int("current_revision", currentRevision),
 		)
@@ -174,7 +174,7 @@ func nextRevision(revision int) int {
 }
 
 func normalizedRevision(revision int) int {
-	// Entries written before revisions existed omit "r". Treat them as the
+	// Records written before revisions existed omit "r". Treat them as the
 	// initial logical revision so their first replacement becomes revision 2.
 	if revision < 1 {
 		return 1

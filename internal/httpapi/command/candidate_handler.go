@@ -7,10 +7,10 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	sloghttp "github.com/samber/slog-http"
 
-	domainCandidate "github.com/gitrus/digikeeper-log/internal/domain/command/candidate"
-	commandmodel "github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/httpapi"
+	domainCandidate "github.com/digikeeper/digikeeper-journal/internal/domain/command/candidate"
+	commandmodel "github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/httpapi"
 )
 
 type CandidateHandler struct {
@@ -24,7 +24,7 @@ func NewCandidateHandler(svc *domainCandidate.Service) *CandidateHandler {
 type SubmitCandidateInput struct {
 	ClientID string `header:"X-Client-Id" doc:"Client identifier for audit"`
 	Body     struct {
-		EntryID           string         `json:"entry_id" required:"true"`
+		RecordID          string         `json:"record_id" required:"true"`
 		OriginalTimestamp time.Time      `json:"original_timestamp" required:"true"`
 		Type              string         `json:"type"`
 		Tags              []string       `json:"tags"`
@@ -34,10 +34,10 @@ type SubmitCandidateInput struct {
 
 func (i *SubmitCandidateInput) Resolve(ctx huma.Context) []error {
 	var errs []error
-	if i.Body.EntryID == "" {
+	if i.Body.RecordID == "" {
 		errs = append(errs, &huma.ErrorDetail{
-			Location: "body.entry_id",
-			Message:  "'entry_id' is required",
+			Location: "body.record_id",
+			Message:  "'record_id' is required",
 		})
 	}
 	if i.Body.OriginalTimestamp.IsZero() {
@@ -70,7 +70,7 @@ func (h *CandidateHandler) SubmitCandidate(
 	input *SubmitCandidateInput,
 ) (*SubmitCandidateOutput, error) {
 	c, err := h.svc.Submit(ctx, domainCandidate.SubmitRequest{
-		EntryID:           input.Body.EntryID,
+		RecordID:          input.Body.RecordID,
 		OriginalTimestamp: input.Body.OriginalTimestamp,
 		Type:              input.Body.Type,
 		Tags:              input.Body.Tags,

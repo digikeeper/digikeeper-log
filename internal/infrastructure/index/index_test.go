@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/pkg/timefmt"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/pkg/timefmt"
 )
 
 func TestStoreSearch(t *testing.T) {
@@ -18,19 +18,19 @@ func TestStoreSearch(t *testing.T) {
 	store := newTestStore(t)
 	for _, row := range []Row{
 		{
-			File:      "dk_logs/2026/2026-03-08_logs.jsonl",
+			File:      "dk_journal/2026/2026-03-08_journal.jsonl",
 			Tags:      []string{"work", "focus"},
 			Types:     []string{"note"},
 			Timestamp: mustParseTime(t, "2026-03-08T10:00:00Z"),
 		},
 		{
-			File:      "dk_logs/2026/2026-03-09_logs.jsonl",
+			File:      "dk_journal/2026/2026-03-09_journal.jsonl",
 			Tags:      []string{"fitness", "health"},
 			Types:     []string{"exercise"},
 			Timestamp: mustParseTime(t, "2026-03-09T10:00:00Z"),
 		},
 		{
-			File:      "dk_logs/2026/2026-03-10_logs.jsonl",
+			File:      "dk_journal/2026/2026-03-10_journal.jsonl",
 			Tags:      []string{"health", "nutrition"},
 			Types:     []string{"meal"},
 			Timestamp: mustParseTime(t, "2026-03-10T10:00:00Z"),
@@ -48,22 +48,22 @@ func TestStoreSearch(t *testing.T) {
 			name:   "repeated tags use OR semantics",
 			params: SearchParams{Tags: []string{"fitness", "nutrition"}},
 			wantFiles: []string{
-				"dk_logs/2026/2026-03-10_logs.jsonl",
-				"dk_logs/2026/2026-03-09_logs.jsonl",
+				"dk_journal/2026/2026-03-10_journal.jsonl",
+				"dk_journal/2026/2026-03-09_journal.jsonl",
 			},
 		},
 		{
 			name:   "repeated types use OR semantics",
 			params: SearchParams{Types: []string{"exercise", "meal"}},
 			wantFiles: []string{
-				"dk_logs/2026/2026-03-10_logs.jsonl",
-				"dk_logs/2026/2026-03-09_logs.jsonl",
+				"dk_journal/2026/2026-03-10_journal.jsonl",
+				"dk_journal/2026/2026-03-09_journal.jsonl",
 			},
 		},
 		{
 			name:      "tag and type filters are combined",
 			params:    SearchParams{Tags: []string{"health"}, Types: []string{"meal"}},
-			wantFiles: []string{"dk_logs/2026/2026-03-10_logs.jsonl"},
+			wantFiles: []string{"dk_journal/2026/2026-03-10_journal.jsonl"},
 		},
 		{
 			name: "time filters match overlapping files",
@@ -71,7 +71,7 @@ func TestStoreSearch(t *testing.T) {
 				From: mustParseTime(t, "2026-03-09T00:00:00Z"),
 				To:   mustParseTime(t, "2026-03-09T23:59:59Z"),
 			},
-			wantFiles: []string{"dk_logs/2026/2026-03-09_logs.jsonl"},
+			wantFiles: []string{"dk_journal/2026/2026-03-09_journal.jsonl"},
 		},
 	}
 
@@ -90,13 +90,13 @@ func TestStoreInsertMergesFileMetadata(t *testing.T) {
 	store := newTestStore(t)
 	for _, row := range []Row{
 		{
-			File:      "dk_logs/2026/2026-03-08_logs.jsonl",
+			File:      "dk_journal/2026/2026-03-08_journal.jsonl",
 			Tags:      []string{"work"},
 			Types:     []string{"note"},
 			Timestamp: mustParseTime(t, "2026-03-08T10:00:00Z"),
 		},
 		{
-			File:      "dk_logs/2026/2026-03-08_logs.jsonl",
+			File:      "dk_journal/2026/2026-03-08_journal.jsonl",
 			Tags:      []string{"fitness"},
 			Types:     []string{"exercise"},
 			Timestamp: mustParseTime(t, "2026-03-08T14:00:00Z"),
@@ -111,7 +111,7 @@ func TestStoreInsertMergesFileMetadata(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, "dk_logs/2026/2026-03-08_logs.jsonl", results[0].File)
+	assert.Equal(t, "dk_journal/2026/2026-03-08_journal.jsonl", results[0].File)
 	assert.Equal(t, mustParseTime(t, "2026-03-08T10:00:00Z"), results[0].MinTS)
 	assert.Equal(t, mustParseTime(t, "2026-03-08T14:00:00Z"), results[0].MaxTS)
 	assert.ElementsMatch(t, []string{"work", "fitness"}, results[0].Tags)
@@ -124,13 +124,13 @@ func TestStoreRebuildPartition(t *testing.T) {
 	store := newTestStore(t)
 	partition := core.PartitionFromTime(mustParseTime(t, "2026-03-08T10:00:00Z"))
 	require.NoError(t, store.Insert(t.Context(), Row{
-		File:      "2026/2026-03-08_logs.jsonl",
+		File:      "2026/2026-03-08_journal.jsonl",
 		Tags:      []string{"old"},
 		Types:     []string{"note"},
 		Timestamp: mustParseTime(t, "2026-03-08T09:00:00Z"),
 	}))
 
-	err := store.RebuildPartition(t.Context(), partition, []core.Entry{
+	err := store.RebuildPartition(t.Context(), partition, []core.Record{
 		{
 			Timestamp: mustParseTime(t, "2026-03-08T10:00:00.123456789Z"),
 			Type:      "note",
@@ -147,7 +147,7 @@ func TestStoreRebuildPartition(t *testing.T) {
 	results, err := store.Search(t.Context(), SearchParams{Tags: []string{"work"}})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, "2026/2026-03-08_logs.jsonl", results[0].File)
+	assert.Equal(t, "2026/2026-03-08_journal.jsonl", results[0].File)
 	assert.ElementsMatch(t, []string{"work", "health"}, results[0].Tags)
 	assert.ElementsMatch(t, []string{"note", "meal"}, results[0].Types)
 	assert.Equal(t, mustParseTime(t, "2026-03-08T10:00:00.123Z"), results[0].MinTS)
@@ -160,7 +160,7 @@ func TestStoreRebuildPartitionEmptyDeletesRow(t *testing.T) {
 	store := newTestStore(t)
 	partition := core.PartitionFromTime(mustParseTime(t, "2026-03-08T10:00:00Z"))
 	require.NoError(t, store.Insert(t.Context(), Row{
-		File:      "2026/2026-03-08_logs.jsonl",
+		File:      "2026/2026-03-08_journal.jsonl",
 		Tags:      []string{"work"},
 		Types:     []string{"note"},
 		Timestamp: mustParseTime(t, "2026-03-08T10:00:00Z"),

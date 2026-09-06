@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "digikeeper-log server",
+      "name": "digikeeper-journal server",
       "runtimeExecutable": "go",
       "runtimeArgs": ["run", "./cmd/server"],
       "port": 8080

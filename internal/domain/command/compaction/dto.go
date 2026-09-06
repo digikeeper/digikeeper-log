@@ -3,7 +3,7 @@ package compaction
 import (
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
 // CompactRequest specifies which partition to compact.

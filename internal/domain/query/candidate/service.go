@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/query/model"
 )
 
 // Storage reads candidates from the pending area.

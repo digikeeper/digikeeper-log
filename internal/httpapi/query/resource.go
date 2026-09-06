@@ -3,41 +3,41 @@ package query
 import (
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
-type EntryResource struct {
+type RecordResource struct {
 	id    string
-	attrs EntryResourceAttrs
+	attrs RecordResourceAttrs
 }
 
-type EntryResourceMeta struct {
+type RecordResourceMeta struct {
 	SchemaVersion int    `json:"schema_version"`
 	Revision      int    `json:"revision"`
 	Source        string `json:"source"`
 }
 
-type EntryResourceAttrs struct {
+type RecordResourceAttrs struct {
 	RequestID string    `json:"request_id"`
 	CreatedAt time.Time `json:"created_at"`
 	Timestamp time.Time `json:"timestamp"`
 
-	Meta EntryResourceMeta `json:"meta"`
+	Meta RecordResourceMeta `json:"meta"`
 
 	Type string         `json:"type"`
 	Tags []string       `json:"tags"`
 	Data map[string]any `json:"data"`
 }
 
-func (r EntryResource) GetID() string      { return r.id }
-func (r EntryResource) GetAttributes() any { return r.attrs }
+func (r RecordResource) GetID() string      { return r.id }
+func (r RecordResource) GetAttributes() any { return r.attrs }
 
-func NewEntryResource(e core.Entry, resolve func(int) string) EntryResource {
-	return EntryResource{
+func NewRecordResource(e core.Record, resolve func(int) string) RecordResource {
+	return RecordResource{
 		id: e.ID,
-		attrs: EntryResourceAttrs{
+		attrs: RecordResourceAttrs{
 			Type: e.Type,
-			Meta: EntryResourceMeta{
+			Meta: RecordResourceMeta{
 				SchemaVersion: e.Meta.SchemaVersion,
 				Revision:      e.Meta.Revision,
 				Source:        resolve(e.Meta.Src),

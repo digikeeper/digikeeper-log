@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
 // Storage manages candidate lifecycle: append, list pending, move, and partition locking.
@@ -17,18 +17,18 @@ type Storage interface {
 	MoveCandidates(ctx context.Context, partition core.Partition, applied, denied []model.Candidate) error
 }
 
-// LogStorage reads existing log entries to verify the original exists.
-type LogStorage interface {
-	ReadEntry(ctx context.Context, entryID string, partition core.Partition) (core.Entry, error)
+// JournalStorage reads existing journal records to verify the original exists.
+type JournalStorage interface {
+	ReadRecord(ctx context.Context, recordID string, partition core.Partition) (core.Record, error)
 }
 
 // Service handles candidate commands: submit and resolve.
 type Service struct {
-	storage    Storage
-	logStorage LogStorage
-	logger     *slog.Logger
+	storage        Storage
+	journalStorage JournalStorage
+	logger         *slog.Logger
 }
 
-func NewService(s Storage, ls LogStorage, logger *slog.Logger) *Service {
-	return &Service{storage: s, logStorage: ls, logger: logger}
+func NewService(s Storage, ls JournalStorage, logger *slog.Logger) *Service {
+	return &Service{storage: s, journalStorage: ls, logger: logger}
 }

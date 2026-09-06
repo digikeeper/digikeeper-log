@@ -1,6 +1,6 @@
-# digikeeper-log
+# digikeeper-journal
 
-`digikeeper-log` is the storage layer for the Digikeeper personal logging app, responsible for persisting and indexing log entries.
+`digikeeper-journal` is the storage layer for the Digikeeper personal records app, responsible for persisting and indexing journal records.
 
 Tech stack: HTTP service + JSONL storage + SQLite index.
 
@@ -9,7 +9,7 @@ Tech stack: HTTP service + JSONL storage + SQLite index.
 
 ## Contributors guide
 
-Requires Go 1.26+,
+Requires Go 1.27+,
 [just](https://github.com/casey/just).
 Copy `.env.example` → `.env`.
 

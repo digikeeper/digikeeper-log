@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/errs"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/errs"
 )
 
 // Resolve validates caller resolutions, enforces the all-at-once invariant,
@@ -46,7 +46,7 @@ func (s *Service) Resolve(
 		}
 	}
 
-	// Enforce all-at-once: every pending candidate resolved, max one Apply per entry.
+	// Enforce all-at-once: every pending candidate resolved, max one Apply per record.
 	if err := validateAllAtOnce(pending, req.Resolutions); err != nil {
 		return nil, err
 	}
@@ -100,25 +100,25 @@ func validateAllAtOnce(pending []model.Candidate, resolutions []ResolveItem) err
 	for _, c := range pending {
 		if _, ok := resolutionsByID[c.ID]; !ok {
 			return fmt.Errorf(
-				"candidate %s entry %s: %w",
-				c.ID, c.EntryID, errs.ErrIncompleteResolution,
+				"candidate %s record %s: %w",
+				c.ID, c.RecordID, errs.ErrIncompleteResolution,
 			)
 		}
 	}
 
-	applyByEntryCounts := make(map[string]int)
+	applyByRecordCounts := make(map[string]int)
 	for _, c := range pending {
 		item := resolutionsByID[c.ID]
 		if item.Action == core.Apply {
-			applyByEntryCounts[c.EntryID]++
+			applyByRecordCounts[c.RecordID]++
 		}
 	}
 
-	for entryID, count := range applyByEntryCounts {
+	for recordID, count := range applyByRecordCounts {
 		if count > 1 {
 			return fmt.Errorf(
-				"entry %s count %d: %w",
-				entryID, count, errs.ErrMultipleApply,
+				"record %s count %d: %w",
+				recordID, count, errs.ErrMultipleApply,
 			)
 		}
 	}

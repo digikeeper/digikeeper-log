@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEntryMeta_UnmarshalLegacySchemaVersion(t *testing.T) {
+func TestRecordMeta_UnmarshalLegacySchemaVersion(t *testing.T) {
 	t.Parallel()
 
-	var meta EntryMeta
+	var meta RecordMeta
 	require.NoError(t, json.Unmarshal([]byte(`{"v":1,"r":2,"s":3}`), &meta))
 	assert.Equal(t, 1, meta.SchemaVersion)
 	assert.Equal(t, 2, meta.Revision)

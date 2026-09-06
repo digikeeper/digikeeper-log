@@ -3,13 +3,13 @@ package model
 import (
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
 type Candidate struct {
-	ID                string     `json:"id"`
-	EntryID           string     `json:"entry_id"`
-	OriginalTimestamp time.Time  `json:"original_ts"`
-	Entry             core.Entry `json:"entry"`
-	CreatedAt         time.Time  `json:"created_at"`
+	ID                string      `json:"id"`
+	RecordID          string      `json:"record_id"`
+	OriginalTimestamp time.Time   `json:"original_ts"`
+	Record            core.Record `json:"record"`
+	CreatedAt         time.Time   `json:"created_at"`
 }

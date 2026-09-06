@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
 )
 
 //go:embed sources.json

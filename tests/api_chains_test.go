@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
 )
 
 func TestPostThenGet(t *testing.T) {
@@ -59,7 +59,7 @@ func TestCandidateResolveAndCompactFlow(t *testing.T) {
 	var appended singleResponse
 	require.NoError(t, jsonx.UnmarshalRead(appendResp.Body, &appended))
 
-	submitBody := `{"entry_id":"` + appended.Data.ID + `","original_timestamp":"2026-03-08T10:00:00Z","type":"note","tags":["corrected"],"data":{"note":"corrected text"}}`
+	submitBody := `{"record_id":"` + appended.Data.ID + `","original_timestamp":"2026-03-08T10:00:00Z","type":"note","tags":["corrected"],"data":{"note":"corrected text"}}`
 	submitResp := postJSONWithHeaders(t, srv.URL+"/v1/candidates", submitBody, map[string]string{
 		"X-Client-Id": "mobile",
 	})
@@ -69,8 +69,8 @@ func TestCandidateResolveAndCompactFlow(t *testing.T) {
 	require.NoError(t, jsonx.UnmarshalRead(submitResp.Body, &submitted))
 	assert.Equal(t, "candidates", submitted.Meta.Type)
 	assert.NotEmpty(t, submitted.Data.ID)
-	assert.Equal(t, appended.Data.ID, submitted.Data.Attributes.EntryID)
-	assert.Equal(t, "corrected text", submitted.Data.Attributes.Entry.Data["note"])
+	assert.Equal(t, appended.Data.ID, submitted.Data.Attributes.RecordID)
+	assert.Equal(t, "corrected text", submitted.Data.Attributes.Record.Data["note"])
 
 	batchResp := getURL(t, srv.URL+"/v1/candidates/pending?partition=2026-03-08")
 	defer closeResponseBody(t, batchResp)
@@ -79,7 +79,7 @@ func TestCandidateResolveAndCompactFlow(t *testing.T) {
 	require.NoError(t, jsonx.UnmarshalRead(batchResp.Body, &batch))
 	require.Len(t, batch.Data, 1)
 	assert.Equal(t, submitted.Data.ID, batch.Data[0].ID)
-	assert.Equal(t, appended.Data.ID, batch.Data[0].Attributes.EntryID)
+	assert.Equal(t, appended.Data.ID, batch.Data[0].Attributes.RecordID)
 
 	resolveBody := `{"partition":"2026-03-08","resolutions":[{"candidate_id":"` + batch.Data[0].ID + `","action":"apply","reason":"best correction"}]}`
 	resolveResp := postJSONWithHeaders(t, srv.URL+"/v1/candidates/resolve", resolveBody, map[string]string{
@@ -114,9 +114,9 @@ func TestCandidateResolveAndCompactFlow(t *testing.T) {
 
 func TestResolveCandidatesIncompleteResolution(t *testing.T) {
 	srv := setupTestServer(t)
-	entryID := appendTestEntry(t, srv)
-	candidateA := submitTestCandidate(t, srv, entryID, "a", []string{"a"})
-	_ = submitTestCandidate(t, srv, entryID, "b", []string{"b"})
+	recordID := appendTestRecord(t, srv)
+	candidateA := submitTestCandidate(t, srv, recordID, "a", []string{"a"})
+	_ = submitTestCandidate(t, srv, recordID, "b", []string{"b"})
 
 	resolveBody := `{"partition":"2026-03-08","resolutions":[{"candidate_id":"` + candidateA + `","action":"deny"}]}`
 	resp := postJSONWithHeaders(t, srv.URL+"/v1/candidates/resolve", resolveBody, map[string]string{
@@ -126,11 +126,11 @@ func TestResolveCandidatesIncompleteResolution(t *testing.T) {
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 }
 
-func TestResolveCandidatesRejectsMultipleApplyForEntry(t *testing.T) {
+func TestResolveCandidatesRejectsMultipleApplyForRecord(t *testing.T) {
 	srv := setupTestServer(t)
-	entryID := appendTestEntry(t, srv)
-	candidateA := submitTestCandidate(t, srv, entryID, "a", []string{"a"})
-	candidateB := submitTestCandidate(t, srv, entryID, "b", []string{"b"})
+	recordID := appendTestRecord(t, srv)
+	candidateA := submitTestCandidate(t, srv, recordID, "a", []string{"a"})
+	candidateB := submitTestCandidate(t, srv, recordID, "b", []string{"b"})
 
 	resolveBody := `{"partition":"2026-03-08","resolutions":[{"candidate_id":"` + candidateA + `","action":"apply"},{"candidate_id":"` + candidateB + `","action":"apply"}]}`
 	resp := postJSONWithHeaders(t, srv.URL+"/v1/candidates/resolve", resolveBody, map[string]string{

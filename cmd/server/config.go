@@ -20,7 +20,7 @@ type APIConfig struct {
 	LocalHost string        `env:"LOCAL_HOST" env-required:"true"`
 }
 
-type LogStorageConfig struct {
+type JournalStorageConfig struct {
 	Path string `env:"PATH" env-default:"/var/lib/digikeeper"`
 }
 
@@ -34,11 +34,11 @@ type DebugConfig struct {
 }
 
 type Config struct {
-	Common     CommonConfig     `yaml:"common"`
-	LogStorage LogStorageConfig `yaml:"log_storage" env-prefix:"LOG_STORAGE_"`
-	SQLite     SQLiteConfig     `yaml:"sqlite" env-prefix:"SQLITE_"`
-	API        APIConfig        `yaml:"api" env-prefix:"API_"`
-	Debug      DebugConfig      `yaml:"debug" env-prefix:"DEBUG_"`
+	Common         CommonConfig         `yaml:"common"`
+	JournalStorage JournalStorageConfig `yaml:"journal_storage" env-prefix:"JOURNAL_STORAGE_"`
+	SQLite         SQLiteConfig         `yaml:"sqlite" env-prefix:"SQLITE_"`
+	API            APIConfig            `yaml:"api" env-prefix:"API_"`
+	Debug          DebugConfig          `yaml:"debug" env-prefix:"DEBUG_"`
 }
 
 func (c *Config) IsDevEnv() bool {

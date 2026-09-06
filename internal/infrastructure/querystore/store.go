@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/query/model"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/jsonlstore"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/query/model"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/index"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/jsonlstore"
 )
 
 type Store struct {
@@ -15,9 +15,9 @@ type Store struct {
 	idx      *index.Store
 }
 
-func NewStore(jsonLogsDir string, idx *index.Store) *Store {
+func NewStore(jsonJournalDir string, idx *index.Store) *Store {
 	return &Store{
-		rawStore: jsonlstore.NewJSONLWriter(jsonLogsDir, "logs"),
+		rawStore: jsonlstore.NewJSONLWriter(jsonJournalDir, "journal"),
 		idx:      idx,
 	}
 }
@@ -41,17 +41,17 @@ func (s *Store) Search(ctx context.Context, p model.SearchParams) ([]string, err
 }
 
 // Read satisfies query.Storage.
-func (s *Store) Read(ctx context.Context, keys []string) ([]core.Entry, error) {
-	var entries []core.Entry
+func (s *Store) Read(ctx context.Context, keys []string) ([]core.Record, error) {
+	var records []core.Record
 	for _, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("store: read cancelled: %w", err)
 		}
-		fileEntries, err := s.rawStore.Read(key)
+		fileRecords, err := s.rawStore.Read(key)
 		if err != nil {
 			return nil, fmt.Errorf("store: read %s: %w", key, err)
 		}
-		entries = append(entries, fileEntries...)
+		records = append(records, fileRecords...)
 	}
-	return entries, nil
+	return records, nil
 }

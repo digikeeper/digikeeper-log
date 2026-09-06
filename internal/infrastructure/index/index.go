@@ -10,11 +10,11 @@ import (
 
 	_ "modernc.org/sqlite" // register "sqlite" driver
 
-	"github.com/gitrus/digikeeper-log/internal/domain/appmetric"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
-	"github.com/gitrus/digikeeper-log/pkg/sqlitedsn"
-	"github.com/gitrus/digikeeper-log/pkg/timefmt"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/appmetric"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
+	"github.com/digikeeper/digikeeper-journal/pkg/sqlitedsn"
+	"github.com/digikeeper/digikeeper-journal/pkg/timefmt"
 )
 
 // SearchParams filters a [Store.Search] query.
@@ -157,7 +157,7 @@ type Result struct {
 }
 
 // maxFilesPerSearch caps the number of JSONL files scanned per query.
-// Each file is one day of logs; 366 covers a full rolling year.
+// Each file is one day of journal; 366 covers a full rolling year.
 const maxFilesPerSearch = 366
 
 // Search finds JSONL files whose metadata matches the given filters.
@@ -233,11 +233,11 @@ func (s *Store) Search(ctx context.Context, p SearchParams) ([]Result, error) {
 }
 
 // RebuildPartition replaces the file-level index row for a rewritten partition.
-func (s *Store) RebuildPartition(ctx context.Context, partition core.Partition, entries []core.Entry) error {
+func (s *Store) RebuildPartition(ctx context.Context, partition core.Partition, records []core.Record) error {
 	start := time.Now()
 	defer func() { appmetric.RecordIndexLatency(time.Since(start)) }()
 
-	file := fmt.Sprintf("%d/%s_logs.jsonl", partition.Year(), partition.String())
+	file := fmt.Sprintf("%d/%s_journal.jsonl", partition.Year(), partition.String())
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -248,21 +248,21 @@ func (s *Store) RebuildPartition(ctx context.Context, partition core.Partition, 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM file_index WHERE file = ?`, file); err != nil {
 		return fmt.Errorf("sqlite: delete partition index: %w", err)
 	}
-	if len(entries) == 0 {
+	if len(records) == 0 {
 		return tx.Commit()
 	}
 
 	var minTS, maxTS time.Time
 	var tags, types []string
-	for i, entry := range entries {
-		if i == 0 || entry.Timestamp.Before(minTS) {
-			minTS = entry.Timestamp
+	for i, record := range records {
+		if i == 0 || record.Timestamp.Before(minTS) {
+			minTS = record.Timestamp
 		}
-		if i == 0 || entry.Timestamp.After(maxTS) {
-			maxTS = entry.Timestamp
+		if i == 0 || record.Timestamp.After(maxTS) {
+			maxTS = record.Timestamp
 		}
-		tags = append(tags, entry.Tags...)
-		types = append(types, entry.Type)
+		tags = append(tags, record.Tags...)
+		types = append(types, record.Type)
 	}
 
 	tagsJSON, err := jsonx.Marshal(mergeStrings(nil, tags))

@@ -1,8 +1,8 @@
 # Architecture
 
 ## Overview
-An HTTP service for append-based personal logs.
-It accepts log entries over a REST API, stores them durably in JSONL files (source of truth), and maintains a SQLite index for fast querying.
+Part of digikeeper project. An HTTP service for append-based personal records.
+It accepts records over a REST API, stores them durably in JSONL files (source of truth), and maintains a SQLite index for fast querying.
 
 The mutex and locks of data changes is based on flock -- prevents concurrency on OS-dir level.
 
@@ -16,11 +16,9 @@ Currently synchronous. The command storage boundary is compatible with future as
 CQS is not a packaging rule; it is a semantic discipline for separating asking from changing.
 
 The real boundary is not GET versus POST, but read view versus write decision.
-
 A query layer should represent what a caller needs to observe; a command layer should own the consistency rules needed to safely change state.
 
 When a "get" participates in command consistency — locks, versions, transactions, invariant checks, idempotency, or state-transition decisions — it is part of the write model, even if it reads.
-
 Separate query/read models only when they change for different reasons than the command model; otherwise the split becomes ceremonial duplication and increases coupling instead of reducing it.
 
 ## Layering
@@ -43,16 +41,16 @@ Shared utilities (`response.go`, `errors.go`, `middleware.go`) are kept at the `
 `internal/infrastructure/` contains focused packages rather than one facade:
 Each package maps one technical capability to the domain interfaces that use it.
 
-| Package | Role |
-|---------|------|
+| Package        | Role |
+|----------------|------|
 | `commandstore` | Write path: JSONL append + index update |
-| `querystore` | Read path: matching file lookup → JSONL scan |
-| `index` | Finds JSONL files that may contain matching entries |
-| `jsonlstore` | Raw JSONL file I/O |
-| `sourcerepo` | Source-ID ↔ name resolution |
+| `querystore`   | Read path: matching file lookup → JSONL scan |
+| `index`        | Finds JSONL files that may contain matching entries |
+| `jsonlstore`   | Raw JSONL file I/O |
+| `sourcerepo`   | Source-ID ↔ name resolution |
 
 ## Observability
-- RequestID in every JSONL entry + `X-Request-ID` header
+- RequestID in every JSONL record + `X-Request-ID` header
 - `slog.JSONHandler` structured logging
 - `expvar`: `records_appended`, `sqlite_index_latency_ms` at `/debug/vars`
 
@@ -66,9 +64,9 @@ Before making API design decisions, consult the spec and its addendums first.
 
 ## Trade-offs
 
-| Decision | Revisit when |
-|----------|-------------|
+| Decision                | Revisit when |
+|-------------------------|-------------|
 | Synchronous write+index | Write latency matters |
-| expvar metrics | Need Prometheus/OTel |
-| No auth | Exposed to untrusted network |
-| File-level index (not per-entry) | Need sub-file granularity |
+| expvar metrics          | Need Prometheus/OTel |
+| No auth                 | Exposed to untrusted network |
+| File-level index        | Need sub-file granularity |

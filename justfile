@@ -1,6 +1,5 @@
 bin := "./bin"
 cmd := "./cmd"
-export GOEXPERIMENT := "jsonv2"
 
 build:
     go build -o {{ bin }}/server {{ cmd }}/server

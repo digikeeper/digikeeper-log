@@ -11,24 +11,24 @@ import (
 
 	"github.com/tidwall/gjson"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/errs"
-	"github.com/gitrus/digikeeper-log/internal/jsonx"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/errs"
+	"github.com/digikeeper/digikeeper-journal/internal/jsonx"
 )
 
-const maxEntrySizeBytes = 10 * 1024 * 1024 // 10 MiB
+const maxJournalSizeBytes = 10 * 1024 * 1024 // 10 MiB
 
-// JSONLWriter manages JSONL log partition files for appending and reading.
+// JSONLWriter manages JSONL partition files for appending and reading.
 //
 // Concurrency model:
 //   - files (sync.Map) provides lock-free lookup of open file descriptors.
 //   - O_APPEND guarantees atomic positioning for writes.
 //   - dirMu serializes directory creation only when a new year-directory is needed.
 type JSONLWriter struct {
-	dir     string
-	logType string
-	files   sync.Map   // relPath → *logFD
-	dirMu   sync.Mutex // held only during mkdir+open on cache miss
+	dir      string
+	fileType string
+	files    sync.Map   // relPath → *logFD
+	dirMu    sync.Mutex // held only during mkdir+open on cache miss
 }
 
 type logFD struct {
@@ -57,21 +57,21 @@ func WithTags(tags ...string) ReadOption {
 	}
 }
 
-func NewJSONLWriter(dir, logType string) *JSONLWriter {
+func NewJSONLWriter(dir, fileType string) *JSONLWriter {
 	return &JSONLWriter{
-		dir:     dir,
-		logType: logType,
+		dir:      dir,
+		fileType: fileType,
 	}
 }
 
-func (w *JSONLWriter) Append(entry core.Entry) (string, error) {
-	line, err := jsonx.Marshal(entry)
+func (w *JSONLWriter) Append(record core.Record) (string, error) {
+	line, err := jsonx.Marshal(record)
 	if err != nil {
 		return "", fmt.Errorf("jsonl: marshal: %w, %w", err, errs.ErrStorageCommon)
 	}
 	line = append(line, '\n')
 
-	relPath := w.BuildRelPath(core.PartitionFromTime(entry.Timestamp))
+	relPath := w.BuildRelPath(core.PartitionFromTime(record.Timestamp))
 	lfd, err := w.getOrCreate(relPath)
 	if err != nil {
 		return "", err
@@ -114,7 +114,7 @@ func (w *JSONLWriter) getOrCreate(relPath string) (*logFD, error) {
 	return lfd, nil
 }
 
-func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]core.Entry, error) {
+func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]core.Record, error) {
 	var filters ReadFilters
 	for _, o := range opts {
 		o(&filters)
@@ -131,9 +131,9 @@ func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]core.Entry, er
 	}
 	defer func() { _ = f.Close() }()
 
-	var entries []core.Entry
+	var records []core.Record
 	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, bufio.MaxScanTokenSize), maxEntrySizeBytes)
+	sc.Buffer(make([]byte, bufio.MaxScanTokenSize), maxJournalSizeBytes)
 	for sc.Scan() {
 		line := sc.Bytes()
 		if len(line) == 0 {
@@ -142,13 +142,13 @@ func (w *JSONLWriter) Read(relPath string, opts ...ReadOption) ([]core.Entry, er
 		if hasFilters && !matchFilters(line, &filters) {
 			continue
 		}
-		var e core.Entry
-		if err := jsonx.Unmarshal(line, &e); err != nil {
+		var r core.Record
+		if err := jsonx.Unmarshal(line, &r); err != nil {
 			return nil, fmt.Errorf("jsonl: unmarshal in %s: %w", relPath, err)
 		}
-		entries = append(entries, e)
+		records = append(records, r)
 	}
-	return entries, sc.Err()
+	return records, sc.Err()
 }
 
 func matchFilters(line []byte, f *ReadFilters) bool {
@@ -195,10 +195,10 @@ func (w *JSONLWriter) Close() error {
 	return errors.Join(errs...)
 }
 
-// ReplaceFile atomically rewrites relPath with entries:
+// ReplaceFile atomically rewrites relPath with records:
 //
 //	write tmp → fsync → rename → evict cache
-func (w *JSONLWriter) ReplaceFile(relPath string, entries []core.Entry) error {
+func (w *JSONLWriter) ReplaceFile(relPath string, records []core.Record) error {
 	fpath := filepath.Join(w.dir, relPath)
 	tmpPath := fpath + ".compact.tmp"
 
@@ -207,8 +207,8 @@ func (w *JSONLWriter) ReplaceFile(relPath string, entries []core.Entry) error {
 		return fmt.Errorf("jsonl: replace: open tmp: %w", err)
 	}
 
-	for _, entry := range entries {
-		line, err := jsonx.Marshal(entry)
+	for _, record := range records {
+		line, err := jsonx.Marshal(record)
 		if err != nil {
 			_ = f.Close()
 			_ = os.Remove(tmpPath)
@@ -243,7 +243,7 @@ func (w *JSONLWriter) ReplaceFile(relPath string, entries []core.Entry) error {
 func (w *JSONLWriter) BuildRelPath(p core.Partition) string {
 	return fmt.Sprintf(
 		"%d/%s_%s.jsonl",
-		p.Year(), p.String(), w.logType,
+		p.Year(), p.String(), w.fileType,
 	)
 }
 

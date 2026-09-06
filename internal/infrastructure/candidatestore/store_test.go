@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	commandmodel "github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/errs"
+	commandmodel "github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/errs"
 )
 
 func TestStoreCandidateLifecycle(t *testing.T) {
@@ -21,7 +21,7 @@ func TestStoreCandidateLifecycle(t *testing.T) {
 	require.NoError(t, err)
 
 	partition := testPartition(t)
-	candidate := testCandidate("candidate-a", "entry-a")
+	candidate := testCandidate("candidate-a", "record-a")
 	require.NoError(t, store.AppendCandidate(t.Context(), candidate))
 
 	pending, err := store.ListPending(t.Context(), partition)
@@ -56,11 +56,11 @@ func TestStoreMoveCandidatesAppliedConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	partition := testPartition(t)
-	first := testCandidate("candidate-a", "entry-a")
+	first := testCandidate("candidate-a", "record-a")
 	first.Action = core.Apply
 	require.NoError(t, store.MoveCandidates(t.Context(), partition, []commandmodel.Candidate{first}, nil))
 
-	second := testCandidate("candidate-b", "entry-b")
+	second := testCandidate("candidate-b", "record-b")
 	second.Action = core.Apply
 	err = store.MoveCandidates(t.Context(), partition, []commandmodel.Candidate{second}, nil)
 	require.True(t, errors.Is(err, errs.ErrConflict))
@@ -107,14 +107,14 @@ func testPartition(t *testing.T) core.Partition {
 	return partition
 }
 
-func testCandidate(id, entryID string) commandmodel.Candidate {
+func testCandidate(id, recordID string) commandmodel.Candidate {
 	ts := time.Date(2026, 3, 8, 10, 0, 0, 0, time.UTC)
 	return commandmodel.Candidate{
 		ID:                id,
-		EntryID:           entryID,
+		RecordID:          recordID,
 		OriginalTimestamp: ts,
-		Entry: core.Entry{
-			ID:        entryID,
+		Record: core.Record{
+			ID:        recordID,
 			Timestamp: ts,
 			Type:      "note",
 			Tags:      []string{"work"},

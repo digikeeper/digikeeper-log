@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/appmetric"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
-	"github.com/gitrus/digikeeper-log/internal/domain/errs"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/index"
-	"github.com/gitrus/digikeeper-log/internal/infrastructure/jsonlstore"
-	"github.com/gitrus/digikeeper-log/pkg/flock"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/appmetric"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/errs"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/index"
+	"github.com/digikeeper/digikeeper-journal/internal/infrastructure/jsonlstore"
+	"github.com/digikeeper/digikeeper-journal/pkg/flock"
 )
 
 const lockRetryDelay = 10 * time.Millisecond
@@ -35,39 +35,39 @@ func NewStore(dataPath string, idx *index.Store) (*Store, error) {
 		return nil, err
 	}
 
-	jsonLogsDir := filepath.Join(dataPath, "dk_logs")
-	if err := os.MkdirAll(jsonLogsDir, 0o755); err != nil {
+	jsonJournalDir := filepath.Join(dataPath, "dk_journal")
+	if err := os.MkdirAll(jsonJournalDir, 0o755); err != nil {
 		_ = flock.Release()
-		return nil, fmt.Errorf("store: mkdir %s: %w", jsonLogsDir, err)
+		return nil, fmt.Errorf("store: mkdir %s: %w", jsonJournalDir, err)
 	}
 
 	st := &Store{
 		flock:    flock,
-		rawStore: jsonlstore.NewJSONLWriter(jsonLogsDir, "logs"),
+		rawStore: jsonlstore.NewJSONLWriter(jsonJournalDir, "journal"),
 		idx:      idx,
 	}
-	st.recoverCompaction(jsonLogsDir)
+	st.recoverCompaction(jsonJournalDir)
 
 	return st, nil
 }
 
-func (s *Store) Append(ctx context.Context, entry core.Entry) error {
-	relPath := s.rawStore.BuildRelPath(core.PartitionFromTime(entry.Timestamp))
+func (s *Store) Append(ctx context.Context, record core.Record) error {
+	relPath := s.rawStore.BuildRelPath(core.PartitionFromTime(record.Timestamp))
 	guard, err := s.partitionLock(relPath).SharedLock()
 	if err != nil {
 		return fmt.Errorf("store: partition lock: %w", err)
 	}
 	defer func() { _ = guard.Release() }()
 
-	key, err := s.rawStore.Append(entry)
+	key, err := s.rawStore.Append(record)
 	if err != nil {
 		return fmt.Errorf("store: write: %w", err)
 	}
 	if err := s.idx.Insert(ctx, index.Row{
 		File:      key,
-		Tags:      entry.Tags,
-		Types:     []string{entry.Type},
-		Timestamp: entry.Timestamp,
+		Tags:      record.Tags,
+		Types:     []string{record.Type},
+		Timestamp: record.Timestamp,
 	}); err != nil {
 		return fmt.Errorf("store: index failed: %w, %w", err, errs.ErrIndexFailed)
 	}
@@ -78,7 +78,7 @@ func (s *Store) Append(ctx context.Context, entry core.Entry) error {
 
 // recoverCompaction removes orphaned .compact.tmp
 //
-// Layout: dk_logs/{YYYY}/{YYYY-MM-DD}_logs.jsonl.compact.tmp
+// Layout: dk_journal/{YYYY}/{YYYY-MM-DD}_journal.jsonl.compact.tmp
 func (s *Store) recoverCompaction(dir string) {
 	matches, _ := filepath.Glob(filepath.Join(dir, "*", "*.compact.tmp"))
 
@@ -97,37 +97,37 @@ func (s *Store) partitionLock(relPath string) *flock.RWLock {
 	return flock.NewRWLock(lockPath)
 }
 
-// ReadPartition reads all entries from the given partition. Satisfies compaction.LogStorage.
-func (s *Store) ReadPartition(_ context.Context, p core.Partition) ([]core.Entry, error) {
+// ReadPartition reads all records from the given partition. Satisfies compaction.JournalStorage.
+func (s *Store) ReadPartition(_ context.Context, p core.Partition) ([]core.Record, error) {
 	relPath := s.rawStore.BuildRelPath(p)
-	entries, err := s.rawStore.Read(relPath)
+	records, err := s.rawStore.Read(relPath)
 	if err != nil {
 		return nil, fmt.Errorf("store: read partition %s: %w", p, err)
 	}
-	return entries, nil
+	return records, nil
 }
 
-// ReadEntry scans one partition for the requested entry. Satisfies candidate.LogStorage.
-func (s *Store) ReadEntry(ctx context.Context, entryID string, p core.Partition) (core.Entry, error) {
-	entries, err := s.ReadPartition(ctx, p)
+// ReadRecord scans one partition for the requested record. Satisfies candidate.JournalStorage.
+func (s *Store) ReadRecord(ctx context.Context, recordID string, p core.Partition) (core.Record, error) {
+	records, err := s.ReadPartition(ctx, p)
 	if err != nil {
-		return core.Entry{}, err
+		return core.Record{}, err
 	}
-	for _, entry := range entries {
+	for _, record := range records {
 		if err := ctx.Err(); err != nil {
-			return core.Entry{}, err
+			return core.Record{}, err
 		}
-		if entry.ID == entryID {
-			return entry, nil
+		if record.ID == recordID {
+			return record, nil
 		}
 	}
-	return core.Entry{}, fmt.Errorf("store: entry %s partition %s: %w", entryID, p, errs.ErrEntryNotFound)
+	return core.Record{}, fmt.Errorf("store: record %s partition %s: %w", recordID, p, errs.ErrRecordNotFound)
 }
 
-// ReplacePartition atomically rewrites the partition with entries. Satisfies compaction.LogStorage.
-func (s *Store) ReplacePartition(_ context.Context, p core.Partition, entries []core.Entry) error {
+// ReplacePartition atomically rewrites the partition with records. Satisfies compaction.JournalStorage.
+func (s *Store) ReplacePartition(_ context.Context, p core.Partition, records []core.Record) error {
 	relPath := s.rawStore.BuildRelPath(p)
-	if err := s.rawStore.ReplaceFile(relPath, entries); err != nil {
+	if err := s.rawStore.ReplaceFile(relPath, records); err != nil {
 		return fmt.Errorf("store: replace partition %s: %w", p, err)
 	}
 	return nil

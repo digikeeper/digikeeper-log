@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/gitrus/digikeeper-log/internal/domain/command/model"
-	"github.com/gitrus/digikeeper-log/internal/domain/core"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/command/model"
+	"github.com/digikeeper/digikeeper-journal/internal/domain/core"
 )
 
-// Submit creates a candidate replacement for an existing log entry.
+// Submit creates a candidate replacement for an existing journal record.
 func (s *Service) Submit(
 	ctx context.Context,
 	req SubmitRequest,
@@ -26,13 +26,13 @@ func (s *Service) Submit(
 	}
 	defer releaseCandidate()
 
-	// Verify the original entry exists in the expected partition.
-	original, err := s.logStorage.ReadEntry(ctx, req.EntryID, partition)
+	// Verify the original record exists in the expected partition.
+	original, err := s.journalStorage.ReadRecord(ctx, req.RecordID, partition)
 	if err != nil {
-		return model.Candidate{}, fmt.Errorf("candidate: lookup original %s: %w", req.EntryID, err)
+		return model.Candidate{}, fmt.Errorf("candidate: lookup original %s: %w", req.RecordID, err)
 	}
 
-	// Build the replacement entry: same ID, updated fields.
+	// Build the replacement record: same ID, updated fields.
 	replacement := original
 	replacement.Type = req.Type
 	replacement.Tags = req.Tags
@@ -46,8 +46,8 @@ func (s *Service) Submit(
 
 	c := model.Candidate{
 		ID:                uuid.NewString(),
-		EntryID:           req.EntryID,
-		Entry:             replacement,
+		RecordID:          req.RecordID,
+		Record:            replacement,
 		OriginalTimestamp: req.OriginalTimestamp,
 		CreatedAt:         time.Now().UTC(),
 	}
@@ -58,7 +58,7 @@ func (s *Service) Submit(
 
 	s.logger.InfoContext(ctx, "candidate submitted",
 		slog.String("candidate_id", c.ID),
-		slog.String("entry_id", c.EntryID),
+		slog.String("record_id", c.RecordID),
 		slog.String("request_id", requestID),
 	)
 
